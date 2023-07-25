@@ -17,12 +17,6 @@ def parse_args():
         help="job idx",
     )
     parser.add_argument(
-        "--seed-offset",
-        type=int,
-        default=1,
-        help="random seed offset",
-    )
-    parser.add_argument(
         "--data-type",
         type=str,
         default="simple",
@@ -64,7 +58,6 @@ def parse_args():
 
 def main():
     args = parse_args()
-    np.random.seed(args.seed_offset + args.job_idx)
     logging.basicConfig(
         format="%(message)s", filename=args.log_file, level=logging.INFO
     )

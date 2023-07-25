@@ -19,7 +19,7 @@ class DataGenerator:
     
     def _get_propensity(self, X):
         if self.propensity_beta is None:
-            return np.random.binomial(1, p=0.5, size=X.shape[0])
+            return np.ones(X.shape[0]) * 0.5
         else:
             logit = np.matmul(X, self.propensity_beta.reshape((-1,1))) + self.propensity_intercept
             return 1/(1 + np.exp(-logit))

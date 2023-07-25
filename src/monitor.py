@@ -1,4 +1,5 @@
 import os
+import copy
 import argparse
 import pickle
 import logging
@@ -20,6 +21,18 @@ def parse_args():
         type=int,
         default=1,
         help="job idx",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=10,
+        help="batch size for monitoring",
+    )
+    parser.add_argument(
+        "--num-iters",
+        type=int,
+        default=20,
+        help="iters for monitoring",
     )
     parser.add_argument(
         "--seed-offset",
@@ -149,22 +162,21 @@ def main():
     # biased_loss = (pred_y - y).mean()
     logging.info("biased_loss %f", biased_loss_a0 + biased_loss_a1)
 
-    # run monitoring
-    BATCH_SIZE = 10
-    NUM_ITERS = 10
-    WINDOW_SIZE = 100000
-    NULL_VAL = 0.14
-    res_df = do_monitor(data_gen, mdl, x,a,y, BATCH_SIZE, NUM_ITERS, WINDOW_SIZE, NULL_VAL)
-    
     # get oracle performance
-    data_gen.propensity_beta = None
-    x, y, a = data_gen.generate(MANY_OBS_NUM)
-    pred_y_a0 = mdl.predict_proba(np.concatenate([x, np.zeros((MANY_OBS_NUM, 1))], axis=1))[:,1]
-    pred_y_a1 = mdl.predict_proba(np.concatenate([x, np.ones((MANY_OBS_NUM, 1))], axis=1))[:,1]
+    oracle_data_gen = copy.deepcopy(data_gen)
+    oracle_data_gen.propensity_beta = None
+    oracle_x, oracle_y, oracle_a = oracle_data_gen.generate(MANY_OBS_NUM)
+    pred_y_a0 = mdl.predict_proba(np.concatenate([oracle_x, np.zeros((MANY_OBS_NUM, 1))], axis=1))[:,1]
+    pred_y_a1 = mdl.predict_proba(np.concatenate([oracle_x, np.ones((MANY_OBS_NUM, 1))], axis=1))[:,1]
     oracle_brier_a0 = 0 # np.power(pred_y_a0 - y, 2)[a == 0].mean()
-    oracle_brier_a1 = np.power(pred_y_a1 - y, 2)[a == 1].mean()
+    oracle_brier_a1 = np.power(pred_y_a1 - y, 2)[oracle_a == 1].mean()
+    oracle_loss = oracle_brier_a0 + oracle_brier_a1
     # oracle_brier = (pred_y - y).mean()
-    logging.info("BRIER %f", oracle_brier_a0 + oracle_brier_a1)
+    logging.info("BRIER %f", oracle_loss)
+
+    # run monitoring
+    WINDOW_SIZE = 100000
+    res_df = do_monitor(data_gen, mdl, x,a,y, args.batch_size, args.num_iters, WINDOW_SIZE, null_val=oracle_loss)
 
     res_df.to_csv(args.out_file, index=False)
 

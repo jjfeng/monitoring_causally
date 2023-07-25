@@ -21,13 +21,6 @@ TARGET_BETA = "1,1,0"
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 X_TARGET_MEAN = ",".join(["0"] * NUM_VAR)
 
-nest.add_aggregate('res_agg', list)
-nest.add(
-    'seed',
-    range(10)
-)
-
-
 @nest.add_target_with_env(localenv)
 def make_train_data(env, outdir, c):
     targets = [
@@ -42,7 +35,7 @@ def make_train_data(env, outdir, c):
         '--num-obs',
         100,
         '--seed-offset',
-        c['seed'],
+        0,
         '--x-mean',
         X_SOURCE_MEAN,
         '--beta',
@@ -73,7 +66,7 @@ def train_ml(env, outdir, c):
     cmd = [
         'python train_ml.py',
         '--seed-offset',
-        c['seed'],
+        0,
         '--model',
         'RandomForestClassifier',
         '--data ${SOURCES[0]}',
@@ -105,8 +98,6 @@ def make_prechange_environment(env, outdir, c):
         'python make_environment.py',
         '--data-type',
         'simple',
-        '--seed-offset',
-        c['seed'],
         '--x-mean',
         X_SOURCE_MEAN,
         '--propensity-beta',
@@ -130,6 +121,12 @@ def make_prechange_environment(env, outdir, c):
         [],
         ' '.join(map(str, cmd)))
 
+nest.add_aggregate('res_agg', list)
+nest.add(
+    'seed',
+    range(10)
+)
+
 @nest.add_target_with_env(localenv)
 def monitor(env, outdir, c):
     targets = [
@@ -141,6 +138,10 @@ def monitor(env, outdir, c):
         'python monitor.py',
         '--data-gen ${SOURCES[0]}',
         '--mdl ${SOURCES[1]}',
+        '--batch',
+        10,
+        '--num-iters',
+        30,
         '--seed-offset',
         c['seed'],
         '--log-file ${TARGETS[0]}',

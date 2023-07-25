@@ -54,11 +54,10 @@ def main():
 
     bins = np.linspace(-2, 2, 20)
     print(all_res)
-    fig, axs = plt.subplots(all_res.idx.max() + 1,1, figsize=(10,30))
+    fig, axs = plt.subplots(all_res.idx.max() + 1,1, figsize=(10, all_res.idx.max() * 2))
     for idx in all_res.idx.unique():
         cumsums = all_res[(all_res.idx == idx) & (all_res.label == "cumsum")].value
         wcumsums = all_res[(all_res.idx == idx) & (all_res.label == "wcumsum")].value
-        print(cumsums)
         axs[idx].hist(cumsums, bins, label="cusum", alpha=0.5)
         axs[idx].hist(wcumsums, bins, label="wcusum", alpha=0.5)
         axs[idx].legend()
