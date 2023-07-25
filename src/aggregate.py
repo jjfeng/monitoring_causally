@@ -52,12 +52,16 @@ def main():
         all_res.append(res)
     all_res = pd.concat(all_res).reset_index()
 
-    bins = np.linspace(-2, 2, 20)
+    bins = np.linspace(-2, 2, 40)
     print(all_res)
     fig, axs = plt.subplots(all_res.idx.max() + 1,1, figsize=(10, all_res.idx.max() * 2))
     for idx in all_res.idx.unique():
+        print("idx", idx)
         cumsums = all_res[(all_res.idx == idx) & (all_res.label == "cumsum")].value
         wcumsums = all_res[(all_res.idx == idx) & (all_res.label == "wcumsum")].value
+        print("CUSUM", cumsums.mean())
+        # print("CUSUM", cumsums.mean(), all_res[(all_res.idx == idx) & (all_res.label == "cumsum")].sort_values('value'))
+        print("WCUSUM", wcumsums.mean())
         axs[idx].hist(cumsums, bins, label="cusum", alpha=0.5)
         axs[idx].hist(wcumsums, bins, label="wcusum", alpha=0.5)
         axs[idx].legend()

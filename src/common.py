@@ -10,7 +10,7 @@ def make_loss_func(loss_name: str, ml_mdl: BaseEstimator):
     else:
         raise NotImplementedError()
 
-def to_safe_prob(prob, eps=1e-10):
+def to_safe_prob(prob, eps=1e-5):
     return np.maximum(eps, np.minimum(1 - eps, prob))
 
 def convert_logit_to_prob(logit):

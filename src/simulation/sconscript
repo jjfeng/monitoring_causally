@@ -12,10 +12,13 @@ localenv = env.Clone()
 # Set up state
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
+BATCH_SIZE = 100
+NUM_ITERS = 30
 NUM_JOBS = 1
+NUM_SEEDS = 100
 NUM_OBS = 3000
 NUM_VAR = 2
-PROPENSITY_BETA = '0.5,1'
+PROPENSITY_BETA = '0.5,0.5'
 SOURCE_BETA = '1,1,1'
 TARGET_BETA = "1,1,0"
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
@@ -124,7 +127,7 @@ def make_prechange_environment(env, outdir, c):
 nest.add_aggregate('res_agg', list)
 nest.add(
     'seed',
-    range(10)
+    range(NUM_SEEDS)
 )
 
 @nest.add_target_with_env(localenv)
@@ -139,9 +142,9 @@ def monitor(env, outdir, c):
         '--data-gen ${SOURCES[0]}',
         '--mdl ${SOURCES[1]}',
         '--batch',
-        10,
+        BATCH_SIZE,
         '--num-iters',
-        30,
+        NUM_ITERS,
         '--seed-offset',
         c['seed'],
         '--log-file ${TARGETS[0]}',

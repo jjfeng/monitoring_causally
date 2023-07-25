@@ -10,6 +10,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
 from common import get_n_jobs, read_csv, to_safe_prob
 
@@ -66,14 +67,13 @@ def parse_args():
     args.mdl_file = args.mdl_file_template.replace("JOB", str(args.job_idx))
     return args
 
-def make_propensity_features(x, window_size = 10, backwards=True):
+def make_propensity_features(x, window_size = 10, batch_size = 10, backwards=True):
     if backwards:
         x_window = x[-window_size:]
-        t = np.arange(-x_window.shape[0],0)[:,np.newaxis]/window_size
+        t = np.repeat(np.arange(-x_window.shape[0]//batch_size,0), batch_size)[:,np.newaxis]
     else:
         x_window = x
-        t = np.arange(x.shape[0])[:,np.newaxis]/window_size
-
+        t = np.repeat(np.arange(x.shape[0]//batch_size), batch_size)[:,np.newaxis]
     xt = np.concatenate([
         x_window, 
         t,
@@ -82,31 +82,37 @@ def make_propensity_features(x, window_size = 10, backwards=True):
     return xt
 
 def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, batch_size, num_iters, window_size, null_val):
-    propensity_mdl = LogisticRegression(penalty="l1", solver="saga", max_iter=10000)
+    propensity_mdl = RandomForestClassifier(n_estimators=200, n_jobs=2)
+    # mu_mdl = RandomForestRegressor(n_estimators=200, n_jobs=2)
     wcumsums = np.zeros(num_iters)
     wcusum_stats = np.zeros(num_iters)
     cumsums = np.zeros(num_iters)
     cusum_stats = np.zeros(num_iters)
     for i in range(num_iters):
+        print("iter", i)
+        # randomly perturb propensity function
+        if (i > 0) and (i % 10 == 0):
+            data_gen.propensity_beta += np.random.normal(scale=0.1, size=data_gen.propensity_beta.size)
+        print("data_gen.propensity_beta", data_gen.propensity_beta)
         x, y, a = data_gen.generate(batch_size)
         pred_y = mdl.predict_proba(np.concatenate([x,a[:, np.newaxis]], axis=1))[:,1]
         loss = np.power(pred_y - y, 2)
 
         # train propensity model
-        prev_xt = make_propensity_features(prev_x, window_size, backwards=True)
+        prev_xt = make_propensity_features(prev_x, window_size, batch_size, backwards=True)
         propensity_mdl.fit(prev_xt, prev_a[-window_size:])
-        print(propensity_mdl.coef_)
+        # print(propensity_mdl.coef_)
 
-        xt = make_propensity_features(x, window_size, backwards=False)
+        xt = make_propensity_features(x, window_size, batch_size, backwards=False)
         propensity_a1 = to_safe_prob(propensity_mdl.predict_proba(xt)[:,1])
         propensity_a0 = 1 - propensity_a1
         # print(propensity_mdl.coef_, propensity_mdl.intercept_)
         
         ipw_loss = loss/propensity_a1 * (a == 1) # + loss/propensity_a0 * (a == 0)
-        weights = np.sqrt(propensity_a1) #+ np.sqrt(propensity_a0)
-        print("step", np.mean(weights * (ipw_loss - null_val)))
-        wcumsums[:i+1] += np.mean(weights * (ipw_loss - null_val))
-        cumsums[:i+1] += np.mean((ipw_loss - null_val))
+        weight = np.sqrt(np.var(ipw_loss)/batch_size) #+ np.sqrt(propensity_a0)
+        print("weight", weight)
+        wcumsums[:i+1] += np.mean(ipw_loss - null_val)/weight/num_iters if weight > 0 else 0
+        cumsums[:i+1] += np.mean(ipw_loss - null_val)
         print("CUM MEAN", wcumsums[0]/(i + 1))
         wcusum_stats[i] = wcumsums[:i + 1].max()
         cusum_stats[i] = cumsums[:i + 1].max()
@@ -151,7 +157,7 @@ def main():
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
 
-    MANY_OBS_NUM = 100000
+    MANY_OBS_NUM = 1000 * args.batch_size
 
     # biased batch monitoring
     x, y, a = data_gen.generate(MANY_OBS_NUM)
@@ -175,16 +181,16 @@ def main():
     logging.info("BRIER %f", oracle_loss)
 
     # run monitoring
-    WINDOW_SIZE = 100000
+    WINDOW_SIZE = 5 * args.batch_size
     res_df = do_monitor(data_gen, mdl, x,a,y, args.batch_size, args.num_iters, WINDOW_SIZE, null_val=oracle_loss)
 
     res_df.to_csv(args.out_file, index=False)
 
-    # plt.clf()
-    # plt.plot(res_dicts[0]["cusum"], label="cusum")
-    # plt.plot(res_dicts[0]['wcusum'], label="wcusum")
-    # plt.legend()
-    # plt.savefig("_output/test.png")
+    plt.clf()
+    plt.plot(res_df[res_df.label == "cusum"].value, label="cusum")
+    plt.plot(res_df[res_df.label == "wcusum"].value, label="wcusum")
+    plt.legend()
+    plt.savefig("_output/test.png")
 
 
 if __name__ == "__main__":
