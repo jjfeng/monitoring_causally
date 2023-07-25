@@ -92,8 +92,8 @@ def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, batch_size, num_iters, windo
         ipw_loss = loss/propensity_a1 * (a == 1) # + loss/propensity_a0 * (a == 0)
         weights = np.sqrt(propensity_a1) #+ np.sqrt(propensity_a0)
         print("step", np.mean(weights * (ipw_loss - null_val)))
-        wcumsums[:i] += np.mean(weights * (ipw_loss - null_val))
-        cumsums[:i] += np.mean((ipw_loss - null_val))
+        wcumsums[:i+1] += np.mean(weights * (ipw_loss - null_val))
+        cumsums[:i+1] += np.mean((ipw_loss - null_val))
         print("CUM MEAN", wcumsums[0]/(i + 1))
         wcusum_stats[i] = wcumsums[:i + 1].max()
         cusum_stats[i] = cumsums[:i + 1].max()
@@ -147,14 +147,13 @@ def main():
     biased_loss_a0 = 0 #np.power(pred_y_a0 - y, 2)[a == 0].mean()
     biased_loss_a1 = np.power(pred_y_a1 - y, 2)[a == 1].mean()
     # biased_loss = (pred_y - y).mean()
-    print("biased_loss", biased_loss_a0 + biased_loss_a1)
+    logging.info("biased_loss %f", biased_loss_a0 + biased_loss_a1)
 
     # run monitoring
     BATCH_SIZE = 10
     NUM_ITERS = 10
     WINDOW_SIZE = 100000
     NULL_VAL = 0.14
-
     res_df = do_monitor(data_gen, mdl, x,a,y, BATCH_SIZE, NUM_ITERS, WINDOW_SIZE, NULL_VAL)
     
     # get oracle performance
@@ -165,7 +164,7 @@ def main():
     oracle_brier_a0 = 0 # np.power(pred_y_a0 - y, 2)[a == 0].mean()
     oracle_brier_a1 = np.power(pred_y_a1 - y, 2)[a == 1].mean()
     # oracle_brier = (pred_y - y).mean()
-    print("BRIER", oracle_brier_a0 + oracle_brier_a1)
+    logging.info("BRIER %f", oracle_brier_a0 + oracle_brier_a1)
 
     res_df.to_csv(args.out_file, index=False)
 

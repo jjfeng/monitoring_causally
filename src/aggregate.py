@@ -54,12 +54,14 @@ def main():
 
     bins = np.linspace(-2, 2, 20)
     print(all_res)
-    cumsums = all_res[(all_res.idx == 0) & (all_res.label == "cumsum")].value
-    wcumsums = all_res[(all_res.idx == 0) & (all_res.label == "wcumsum")].value
-    print(cumsums)
-    plt.hist(cumsums, label="cusum", alpha=0.5)
-    plt.hist(wcumsums, label="wcusum", alpha=0.5)
-    plt.legend()
+    fig, axs = plt.subplots(all_res.idx.max() + 1,1, figsize=(10,30))
+    for idx in all_res.idx.unique():
+        cumsums = all_res[(all_res.idx == idx) & (all_res.label == "cumsum")].value
+        wcumsums = all_res[(all_res.idx == idx) & (all_res.label == "wcumsum")].value
+        print(cumsums)
+        axs[idx].hist(cumsums, bins, label="cusum", alpha=0.5)
+        axs[idx].hist(wcumsums, bins, label="wcusum", alpha=0.5)
+        axs[idx].legend()
     plt.savefig(args.plot)
 
 if __name__ == "__main__":
