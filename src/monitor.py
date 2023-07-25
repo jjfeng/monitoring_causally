@@ -169,7 +169,7 @@ def main():
     pred_y_a0 = mdl.predict_proba(np.concatenate([oracle_x, np.zeros((MANY_OBS_NUM, 1))], axis=1))[:,1]
     pred_y_a1 = mdl.predict_proba(np.concatenate([oracle_x, np.ones((MANY_OBS_NUM, 1))], axis=1))[:,1]
     oracle_brier_a0 = 0 # np.power(pred_y_a0 - y, 2)[a == 0].mean()
-    oracle_brier_a1 = np.power(pred_y_a1 - y, 2)[oracle_a == 1].mean()
+    oracle_brier_a1 = np.power(pred_y_a1 - oracle_y, 2)[oracle_a == 1].mean()
     oracle_loss = oracle_brier_a0 + oracle_brier_a1
     # oracle_brier = (pred_y - y).mean()
     logging.info("BRIER %f", oracle_loss)
