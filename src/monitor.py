@@ -38,6 +38,11 @@ def parse_args():
         default="_output/mdlJOB.pkl",
     )
     parser.add_argument(
+        "--out-file",
+        type=str,
+        default="_output/out.csv",
+    )
+    parser.add_argument(
         "--log-file-template",
         type=str,
         default="_output/logJOB.txt",
@@ -97,12 +102,28 @@ def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, batch_size, num_iters, windo
         prev_x = np.concatenate([prev_x, x])
         prev_a = np.concatenate([prev_a, a])
         prev_y = np.concatenate([prev_y, y])
-    return {
-        "wcusum": wcusum_stats,
-        "cusum": cusum_stats,
-        "wcumsum": wcumsums,
-        "cumsum": cumsums,
-    }
+    
+    cusum_df = pd.DataFrame({
+        "value": cusum_stats,
+        "idx": np.arange(num_iters),
+        "label": ["cusum"] * num_iters
+    })
+    wcusum_df = pd.DataFrame({
+        "value": wcusum_stats,
+        "idx": np.arange(num_iters),
+        "label": ["wcusum"] * num_iters
+    })
+    cumsum_df = pd.DataFrame({
+        "value": cumsums,
+        "idx": np.arange(num_iters),
+        "label": ["cumsum"] * num_iters
+    })
+    wcumsum_df = pd.DataFrame({
+        "value": wcumsums,
+        "idx": np.arange(num_iters),
+        "label": ["wcumsum"] * num_iters
+    })
+    return pd.concat([cusum_df, wcusum_df, cumsum_df, wcumsum_df])
 
 def main():
     args = parse_args()
@@ -134,13 +155,8 @@ def main():
     WINDOW_SIZE = 100000
     NULL_VAL = 0.14
 
-    NUM_REPS = 100
-    res_dicts = []
-    for i in range(NUM_REPS):
-        print("rep", i)
-        res_dict = do_monitor(data_gen, mdl, x,a,y, BATCH_SIZE, NUM_ITERS, WINDOW_SIZE, NULL_VAL)
-        res_dicts.append(res_dict)
-
+    res_df = do_monitor(data_gen, mdl, x,a,y, BATCH_SIZE, NUM_ITERS, WINDOW_SIZE, NULL_VAL)
+    
     # get oracle performance
     data_gen.propensity_beta = None
     x, y, a = data_gen.generate(MANY_OBS_NUM)
@@ -151,16 +167,13 @@ def main():
     # oracle_brier = (pred_y - y).mean()
     print("BRIER", oracle_brier_a0 + oracle_brier_a1)
 
-    plt.hist([res_dicts[i]["cumsum"][0] for i in range(NUM_REPS)], label="cusum", alpha=0.5)
-    plt.hist([res_dicts[i]["wcumsum"][0] for i in range(NUM_REPS)], label="wcusum", alpha=0.5)
-    plt.legend()
-    plt.savefig("_output/hist.png")
+    res_df.to_csv(args.out_file, index=False)
 
-    plt.clf()
-    plt.plot(res_dicts[0]["cusum"], label="cusum")
-    plt.plot(res_dicts[0]['wcusum'], label="wcusum")
-    plt.legend()
-    plt.savefig("_output/test.png")
+    # plt.clf()
+    # plt.plot(res_dicts[0]["cusum"], label="cusum")
+    # plt.plot(res_dicts[0]['wcusum'], label="wcusum")
+    # plt.legend()
+    # plt.savefig("_output/test.png")
 
 
 if __name__ == "__main__":

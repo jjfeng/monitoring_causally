@@ -21,10 +21,10 @@ TARGET_BETA = "1,1,0"
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 X_TARGET_MEAN = ",".join(["0"] * NUM_VAR)
 
-
+nest.add_aggregate('res_agg', list)
 nest.add(
     'seed',
-    [1]
+    range(10)
 )
 
 
@@ -134,6 +134,7 @@ def make_prechange_environment(env, outdir, c):
 def monitor(env, outdir, c):
     targets = [
         join(outdir, 'log.txt'),
+        join(outdir, 'res.csv'),
     ]
 
     cmd = [
@@ -143,6 +144,41 @@ def monitor(env, outdir, c):
         '--seed-offset',
         c['seed'],
         '--log-file ${TARGETS[0]}',
+        '--out-file ${TARGETS[1]}',
+    ]
+    # cmd = [
+    #     'python run_script.py',
+    #     '--cluster',
+    #     localenv['cluster'],
+    #     '--target-template-file',
+    #     '${TARGETS[0]}',
+    #     '--num-jobs',
+    #     NUM_JOBS,
+    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+    # ]
+    c['res_agg'].append(targets[1])
+    return env.Command(
+        targets,
+        [
+            c['make_prechange_environment'][0],
+            c['train_ml'][0],
+        ],
+        ' '.join(map(str, cmd)))
+
+nest.pop('seed')
+
+@nest.add_target_with_env(localenv)
+def aggregate(env, outdir, c):
+    targets = [
+        join(outdir, 'hist.png'),
+    ]
+    res_files = ','.join([join('simulation', f) for f in c['res_agg']])
+
+    cmd = [
+        'python aggregate.py',
+        '--result',
+        res_files,
+        '--plot ${TARGETS[0]}',
     ]
     # cmd = [
     #     'python run_script.py',
@@ -156,8 +192,5 @@ def monitor(env, outdir, c):
     # ]
     return env.Command(
         targets,
-        [
-            c['make_prechange_environment'][0],
-            c['train_ml'][0],
-        ],
+        c['res_agg'],
         ' '.join(map(str, cmd)))
