@@ -42,6 +42,10 @@ def parse_args():
         help="random seed",
     )
     parser.add_argument(
+        "--do-oracle",
+        action="store_true",
+    )
+    parser.add_argument(
         "--data-gen-template",
         type=str,
         default="_output/dataJOB.csv",
@@ -81,9 +85,9 @@ def make_propensity_features(x, window_size = 10, batch_size = 10, backwards=Tru
         ], axis=1)
     return xt
 
-def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, batch_size, num_iters, window_size, null_val):
+def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, prev_loss, batch_size, num_iters, window_size, null_val, use_oracle=False):
     propensity_mdl = RandomForestClassifier(n_estimators=200, n_jobs=2)
-    # mu_mdl = RandomForestRegressor(n_estimators=200, n_jobs=2)
+    mu_mdl = RandomForestRegressor(n_estimators=200, n_jobs=2)
     wcumsums = np.zeros(num_iters)
     wcusum_stats = np.zeros(num_iters)
     cumsums = np.zeros(num_iters)
@@ -92,27 +96,45 @@ def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, batch_size, num_iters, windo
         print("iter", i)
         # randomly perturb propensity function
         if (i > 0) and (i % 10 == 0):
-            data_gen.propensity_beta += np.random.normal(scale=0.1, size=data_gen.propensity_beta.size)
+            if np.random.rand() < 0.5:
+                data_gen.propensity_beta += 0.1
+            else:
+                data_gen.propensity_beta -= 0.1
         print("data_gen.propensity_beta", data_gen.propensity_beta)
         x, y, a = data_gen.generate(batch_size)
         pred_y = mdl.predict_proba(np.concatenate([x,a[:, np.newaxis]], axis=1))[:,1]
         loss = np.power(pred_y - y, 2)
 
-        # train propensity model
-        prev_xt = make_propensity_features(prev_x, window_size, batch_size, backwards=True)
-        propensity_mdl.fit(prev_xt, prev_a[-window_size:])
-        # print(propensity_mdl.coef_)
+        if not use_oracle:
+            # TRAIN mean model
+            prev_xt = make_propensity_features(prev_x, window_size, batch_size, backwards=True)
+            prev_xta = np.concatenate([prev_xt, prev_a[-window_size:,np.newaxis]], axis=1)
+            xt = make_propensity_features(x, window_size, batch_size, backwards=False)
+            xta = np.concatenate([xt, a[:, np.newaxis]], axis=1)
+            mu_mdl.fit(prev_xta, prev_loss[-window_size:])
+            pred_mu = mu_mdl.predict(xta)
 
-        xt = make_propensity_features(x, window_size, batch_size, backwards=False)
-        propensity_a1 = to_safe_prob(propensity_mdl.predict_proba(xt)[:,1])
-        propensity_a0 = 1 - propensity_a1
-        # print(propensity_mdl.coef_, propensity_mdl.intercept_)
+            # TRAIN propensity model
+            propensity_mdl.fit(prev_xt, prev_a[-window_size:])
+            xt = make_propensity_features(x, window_size, batch_size, backwards=False)
+            propensity_a1 = to_safe_prob(propensity_mdl.predict_proba(xt)[:,1])
+
+            adj_loss = (loss - pred_mu)/propensity_a1 * (a == 1) + pred_mu
+        else:
+            # DO ORACLE
+            propensity_a1 = data_gen._get_propensity(x).flatten()
+            oracle_y_prob = data_gen._get_prob(x,a)
+            loss_y0 = np.power(pred_y - np.zeros(pred_y.shape[0]),2)
+            loss_y1 = np.power(pred_y - np.ones(pred_y.shape[0]),2)
+            oracle_mu = loss_y0 * (1 - oracle_y_prob) + loss_y1 * oracle_y_prob
+            # print(propensity_a1.shape)
+            adj_loss = (loss - oracle_mu)/propensity_a1 * (a == 1) + oracle_mu
         
-        ipw_loss = loss/propensity_a1 * (a == 1) # + loss/propensity_a0 * (a == 0)
-        weight = np.sqrt(np.var(ipw_loss)/batch_size) #+ np.sqrt(propensity_a0)
+        print("estim mean", np.mean(adj_loss))
+        weight = np.sqrt(np.var(adj_loss)/batch_size) #+ np.sqrt(propensity_a0)
         print("weight", weight)
-        wcumsums[:i+1] += np.mean(ipw_loss - null_val)/weight/num_iters if weight > 0 else 0
-        cumsums[:i+1] += np.mean(ipw_loss - null_val)
+        wcumsums[:i+1] += np.mean(adj_loss - null_val)/weight/num_iters if weight > 0 else 0
+        cumsums[:i+1] += np.mean(adj_loss - null_val)
         print("CUM MEAN", wcumsums[0]/(i + 1))
         wcusum_stats[i] = wcumsums[:i + 1].max()
         cusum_stats[i] = cumsums[:i + 1].max()
@@ -121,6 +143,7 @@ def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, batch_size, num_iters, windo
         prev_x = np.concatenate([prev_x, x])
         prev_a = np.concatenate([prev_a, a])
         prev_y = np.concatenate([prev_y, y])
+        prev_loss = np.concatenate([prev_loss, loss])
     
     cusum_df = pd.DataFrame({
         "value": cusum_stats,
@@ -165,6 +188,7 @@ def main():
     pred_y_a1 = mdl.predict_proba(np.concatenate([x, np.ones((MANY_OBS_NUM,1))], axis=1))[:,1]
     biased_loss_a0 = 0 #np.power(pred_y_a0 - y, 2)[a == 0].mean()
     biased_loss_a1 = np.power(pred_y_a1 - y, 2)[a == 1].mean()
+    losses = np.power(pred_y_a1 - y, 2) * (a == 1) + np.power(pred_y_a0 - y, 2) * (a == 0)
     # biased_loss = (pred_y - y).mean()
     logging.info("biased_loss %f", biased_loss_a0 + biased_loss_a1)
 
@@ -182,7 +206,7 @@ def main():
 
     # run monitoring
     WINDOW_SIZE = 5 * args.batch_size
-    res_df = do_monitor(data_gen, mdl, x,a,y, args.batch_size, args.num_iters, WINDOW_SIZE, null_val=oracle_loss)
+    res_df = do_monitor(data_gen, mdl, x,a,y, losses, args.batch_size, args.num_iters, WINDOW_SIZE, null_val=oracle_loss, use_oracle=args.do_oracle)
 
     res_df.to_csv(args.out_file, index=False)
 

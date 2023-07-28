@@ -15,7 +15,7 @@ nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 BATCH_SIZE = 100
 NUM_ITERS = 30
 NUM_JOBS = 1
-NUM_SEEDS = 100
+NUM_SEEDS = 30
 NUM_OBS = 3000
 NUM_VAR = 2
 PROPENSITY_BETA = '0.5,0.5'
@@ -124,6 +124,13 @@ def make_prechange_environment(env, outdir, c):
         [],
         ' '.join(map(str, cmd)))
 
+nest.add(
+    'models',
+    [
+        'oracle',
+        'randomforest'
+    ]
+)
 nest.add_aggregate('res_agg', list)
 nest.add(
     'seed',
@@ -145,6 +152,7 @@ def monitor(env, outdir, c):
         BATCH_SIZE,
         '--num-iters',
         NUM_ITERS,
+        '--do-oracle' if c['models'] == 'oracle' else '',
         '--seed-offset',
         c['seed'],
         '--log-file ${TARGETS[0]}',
