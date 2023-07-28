@@ -95,11 +95,11 @@ def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, prev_loss, batch_size, num_i
     for i in range(num_iters):
         print("iter", i)
         # randomly perturb propensity function
-        if (i > 0) and (i % 10 == 0):
+        if (i > 0) and (i % 4 == 0):
             if np.random.rand() < 0.5:
-                data_gen.propensity_intercept += 1
+                data_gen.propensity_intercept += 2
             else:
-                data_gen.propensity_intercept -= 1
+                data_gen.propensity_intercept -= 2
         print("data_gen.propensity_intercept", data_gen.propensity_intercept)
         x, y, a = data_gen.generate(batch_size)
         pred_y = mdl.predict_proba(np.concatenate([x,a[:, np.newaxis]], axis=1))[:,1]
@@ -108,11 +108,10 @@ def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, prev_loss, batch_size, num_i
         if not use_oracle:
             # TRAIN mean model
             prev_xt = make_propensity_features(prev_x, window_size, batch_size, backwards=True)
-            prev_xta = np.concatenate([prev_xt, prev_a[-window_size:,np.newaxis]], axis=1)
             xt = make_propensity_features(x, window_size, batch_size, backwards=False)
-            xta = np.concatenate([xt, a[:, np.newaxis]], axis=1)
-            mu_mdl.fit(prev_xta, prev_loss[-window_size:])
-            pred_mu = mu_mdl.predict(xta)
+            mask = prev_a[-window_size:] == 1
+            mu_mdl.fit(prev_xt[mask], prev_loss[-window_size:][mask])
+            pred_mu = mu_mdl.predict(xt)
 
             # TRAIN propensity model
             propensity_mdl.fit(prev_xt, prev_a[-window_size:])
@@ -123,7 +122,7 @@ def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, prev_loss, batch_size, num_i
         else:
             # DO ORACLE
             propensity_a1 = data_gen._get_propensity(x).flatten()
-            oracle_y_prob = data_gen._get_prob(x,a)
+            oracle_y_prob = data_gen._get_prob(x,np.ones(a.shape))
             loss_y0 = np.power(pred_y - np.zeros(pred_y.shape[0]),2)
             loss_y1 = np.power(pred_y - np.ones(pred_y.shape[0]),2)
             oracle_mu = loss_y0 * (1 - oracle_y_prob) + loss_y1 * oracle_y_prob
@@ -133,7 +132,7 @@ def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, prev_loss, batch_size, num_i
         print("estim mean", np.mean(adj_loss))
         weight = np.sqrt(np.var(adj_loss)/batch_size) #+ np.sqrt(propensity_a0)
         print("weight", weight)
-        wcumsums[:i+1] += np.mean(adj_loss - null_val)/weight/num_iters if weight > 0 else 0
+        wcumsums[:i+1] += np.mean(adj_loss - null_val)/weight * 0.01 if weight > 0 else 0
         cumsums[:i+1] += np.mean(adj_loss - null_val)
         print("CUM MEAN", wcumsums[0]/(i + 1))
         wcusum_stats[i] = wcumsums[:i + 1].max()
@@ -205,7 +204,7 @@ def main():
     logging.info("BRIER %f", oracle_loss)
 
     # run monitoring
-    WINDOW_SIZE = 5 * args.batch_size
+    WINDOW_SIZE = 2 * args.batch_size
     res_df = do_monitor(data_gen, mdl, x,a,y, losses, args.batch_size, args.num_iters, WINDOW_SIZE, null_val=oracle_loss, use_oracle=args.do_oracle)
 
     res_df.to_csv(args.out_file, index=False)
