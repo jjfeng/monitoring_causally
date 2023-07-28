@@ -97,10 +97,10 @@ def do_monitor(data_gen, mdl, prev_x,prev_a,prev_y, prev_loss, batch_size, num_i
         # randomly perturb propensity function
         if (i > 0) and (i % 10 == 0):
             if np.random.rand() < 0.5:
-                data_gen.propensity_beta += 0.1
+                data_gen.propensity_intercept += 1
             else:
-                data_gen.propensity_beta -= 0.1
-        print("data_gen.propensity_beta", data_gen.propensity_beta)
+                data_gen.propensity_intercept -= 1
+        print("data_gen.propensity_intercept", data_gen.propensity_intercept)
         x, y, a = data_gen.generate(batch_size)
         pred_y = mdl.predict_proba(np.concatenate([x,a[:, np.newaxis]], axis=1))[:,1]
         loss = np.power(pred_y - y, 2)
@@ -180,7 +180,7 @@ def main():
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
 
-    MANY_OBS_NUM = 1000 * args.batch_size
+    MANY_OBS_NUM = min(10000, 1000 * args.batch_size)
 
     # biased batch monitoring
     x, y, a = data_gen.generate(MANY_OBS_NUM)

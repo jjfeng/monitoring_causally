@@ -15,7 +15,7 @@ nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 BATCH_SIZE = 100
 NUM_ITERS = 30
 NUM_JOBS = 1
-NUM_SEEDS = 30
+NUM_SEEDS = 100
 NUM_OBS = 3000
 NUM_VAR = 2
 PROPENSITY_BETA = '0.5,0.5'
@@ -128,7 +128,7 @@ nest.add(
     'models',
     [
         'oracle',
-        'randomforest'
+        # 'randomforest'
     ]
 )
 nest.add_aggregate('res_agg', list)
