@@ -33,12 +33,21 @@ class DataGenerator:
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         return 1 / (1 + np.exp(-logit))
 
-    def _get_propensity(self, X):
+    def _get_propensity(self, X, mdl = None):
+        if mdl is not None:
+            mdl_pred_prob_a0 = mdl.predict_proba(
+                np.concatenate([X, np.zeros((X.shape[0], 1))], axis=1))[:,1:]
+            mdl_pred_prob_a1 = mdl.predict_proba(
+                np.concatenate([X, np.ones((X.shape[0], 1))], axis=1))[:,1:]
+            mdl_pred_diff = mdl_pred_prob_a1 - mdl_pred_prob_a0
+        else:
+            mdl_pred_diff = np.zeros((X.shape[0], 1))
         if self.propensity_beta is None:
             return np.ones(X.shape[0]) * 0.5
         else:
+            X_aug = np.concatenate([mdl_pred_diff, X], axis=1)
             logit = (
-                np.matmul(X, self.propensity_beta.reshape((-1, 1)))
+                np.matmul(X_aug, self.propensity_beta.reshape((-1, 1)))
                 + self.propensity_intercept
             )
             return 1 / (1 + np.exp(-logit))
@@ -53,13 +62,13 @@ class DataGenerator:
         y = np.random.binomial(1, probs.flatten(), size=probs.size)
         return y
 
-    def _generate_A(self, X):
-        treatments = self._get_propensity(X)
+    def _generate_A(self, X, mdl=None):
+        treatments = self._get_propensity(X, mdl)
         A = np.random.binomial(1, treatments.flatten(), size=treatments.size)
         return A
 
-    def generate(self, num_obs):
+    def generate(self, num_obs, mdl = None):
         X = self._generate_X(num_obs)
-        A = self._generate_A(X)
+        A = self._generate_A(X, mdl)
         y = self._generate_Y(X, A)
         return X, y, A

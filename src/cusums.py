@@ -27,7 +27,12 @@ class CUSUM:
         merged_df = stat_df.merge(
             dcl_df, on=["eff_iter", "actual_iter"], suffixes=["_stat", "_dcl"]
         )
-        return np.any(merged_df.value_stat > merged_df.value_dcl)
+        is_fired = np.any(merged_df.value_stat > merged_df.value_dcl)
+        fire_time = None
+        if is_fired:
+            fire_time = np.min(np.where(merged_df.value_stat > merged_df.value_dcl))
+
+        return is_fired, fire_time
 
     def do_bootstrap_update(self, pred_y_a: np.ndarray, eff_count: int, **kwargs):
         boot_ys = np.random.binomial(
@@ -67,6 +72,7 @@ class CUSUM_naive(CUSUM):
         alpha_spending_func,
         n_bootstrap: int = 1000,
         delta: float = 0,
+        halt_when_fired: bool = True
     ):
         self.mdl = mdl
         self.threshold = threshold
@@ -75,6 +81,7 @@ class CUSUM_naive(CUSUM):
         self.alpha_spending_func = alpha_spending_func
         self.n_bootstrap = n_bootstrap
         self.delta = delta
+        self.halt_when_fired = halt_when_fired
 
     def _get_iter_stat(self, y, **kwargs):
         return (self.expected_vals["ppv"] - (y == kwargs["pred_class"]))[
@@ -92,7 +99,7 @@ class CUSUM_naive(CUSUM):
         for i in range(num_iters):
             data_gen.update_time(i)
             print("iter", i, ppv_count)
-            x, y, a = data_gen.generate(1)
+            x, y, a = data_gen.generate(1, self.mdl)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:, 1:]
@@ -113,6 +120,11 @@ class CUSUM_naive(CUSUM):
                     pred_y_a[0], ppv_count, pred_class=pred_class
                 )
                 dcl.append(thres)
+            
+                fired = ppv_cusums[-1] > dcl[-1]
+                if fired and self.halt_when_fired:
+                    break
+
 
         ppv_cusum_df = pd.DataFrame(
             {
@@ -137,6 +149,7 @@ class wCUSUM(CUSUM):
         subgroup_func=None,
         n_bootstrap: int = 10000,
         delta: float = 0,
+        halt_when_fired: bool = True,
     ):
         self.mdl = mdl
         self.threshold = threshold
@@ -147,6 +160,7 @@ class wCUSUM(CUSUM):
         self.subgroup_func = subgroup_func
         self.delta = delta
         self.n_bootstrap = n_bootstrap
+        self.halt_when_fired = halt_when_fired
 
     @property
     def label(self):
@@ -163,7 +177,7 @@ class wCUSUM(CUSUM):
         # estimate class variance
         subg_weights = np.ones(1)
         if self.subgroup_func is not None:
-            x, y, a = data_gen.generate(self.n_bootstrap)
+            x, y, a = data_gen.generate(self.n_bootstrap, self.mdl)
             h = self.subgroup_func(x)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
@@ -205,7 +219,7 @@ class wCUSUM(CUSUM):
         for i in range(num_iters):
             data_gen.update_time(i)
             print("iter", i, len(ppv_cusums))
-            x, y, a = data_gen.generate(1)
+            x, y, a = data_gen.generate(1, self.mdl)
             h = self.subgroup_func(x) if self.subgroup_func is not None else np.ones(1)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
@@ -242,6 +256,10 @@ class wCUSUM(CUSUM):
                 )
                 dcl.append(thres)
 
+                fired = ppv_cusums[-1] > dcl[-1]
+                if fired and self.halt_when_fired:
+                    break
+
         ppv_cusum_df = pd.DataFrame(
             {
                 "value": np.concatenate([np.array(ppv_cusums), dcl]),
@@ -266,6 +284,7 @@ class CUSUM_score(CUSUM):
         subgroup_func,
         n_bootstrap: int = 1000,
         delta: float = 0,
+        halt_when_fired: bool = True,
     ):
         self.mdl = mdl
         self.threshold = threshold
@@ -275,6 +294,7 @@ class CUSUM_score(CUSUM):
         self.subgroup_func = subgroup_func
         self.n_bootstrap = n_bootstrap
         self.delta = delta
+        self.halt_when_fired = halt_when_fired
 
     def _get_iter_stat(self, y, **kwargs):
         return ((y - kwargs["mdl_pred"]) * kwargs["h"])[:, np.newaxis, :]
@@ -289,7 +309,7 @@ class CUSUM_score(CUSUM):
         for i in range(num_iters):
             data_gen.update_time(i)
             print("iter", i)
-            x, y, a = data_gen.generate(1)
+            x, y, a = data_gen.generate(1, self.mdl)
             h = self.subgroup_func(x)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
@@ -310,6 +330,10 @@ class CUSUM_score(CUSUM):
                 pred_y_a[0], eff_count=i + 1, h=h, mdl_pred=pred_y_a
             )
             dcl.append(thres)
+
+            fired = score_cusums[-1] > dcl[-1]
+            if fired and self.halt_when_fired:
+                break
 
         score_cusum_df = pd.DataFrame(
             {
