@@ -5,14 +5,38 @@ import pandas as pd
 
 
 class CUSUM:
-    def __init__(self, mdl, batch_size: int, alpha_spending_func):
+    def __init__(self, mdl, batch_size: int, alpha_spending_func, delta: float, n_bootstrap: int):
         self.mdl = mdl
         self.batch_size = batch_size
         self.alpha_spending_func = alpha_spending_func
+        self.delta = delta
+        self.n_bootstrap = n_bootstrap
     
     def do_monitor(self, num_iters: int, data_gen):
         raise NotImplementedError()
+    
+    def _get_iter_stat(self, y, **kwargs):
+        raise NotImplementedError()
 
+    def do_bootstrap_update(self, pred_y_a: np.ndarray, eff_count: int, **kwargs):
+        print("pred_y_a", pred_y_a.shape)
+        boot_ppv_ys = np.random.binomial(n=1, p=pred_y_a - self.delta, size=self.boot_ppv_cumsums.shape[0] if self.boot_ppv_cumsums is not None else self.n_bootstrap)[:, np.newaxis]
+        boot_iter_ppv_stat = self._get_iter_stat(boot_ppv_ys, **kwargs)
+        if self.boot_ppv_cumsums is not None:
+            print("self.boot_ppv_cumsums", self.boot_ppv_cumsums.shape)
+        print("boot_iter_ppv_stat", boot_iter_ppv_stat.shape)
+        self.boot_ppv_cumsums = np.concatenate([self.boot_ppv_cumsums + boot_iter_ppv_stat, boot_iter_ppv_stat], axis=1) if self.boot_ppv_cumsums is not None else boot_iter_ppv_stat
+        print("POST self.boot_ppv_cumsums", self.boot_ppv_cumsums.shape)
+        boot_ppv_cusums = np.max(np.max(self.boot_ppv_cumsums, axis=1), axis=1)
+        print("boot_ppv_cusums", boot_ppv_cusums.shape)
+        
+        thres = np.quantile(
+            boot_ppv_cusums,
+            q=self.n_bootstrap * (1 - self.alpha_spending_func(eff_count))/self.boot_ppv_cumsums.shape[0])
+        boot_keep_mask = boot_ppv_cusums <= thres
+        print("boot_keep_mask", boot_keep_mask.shape)
+        self.boot_ppv_cumsums = self.boot_ppv_cumsums[boot_keep_mask]
+        return thres
 
 class CUSUM_naive(CUSUM):
     label = 'naive'
@@ -24,38 +48,31 @@ class CUSUM_naive(CUSUM):
         self.alpha_spending_func = alpha_spending_func
         self.n_bootstrap = n_bootstrap
         self.delta = delta
+    
+    def _get_iter_stat(self, y, **kwargs):
+        return (self.expected_vals["ppv"] - (y == kwargs['pred_class']))[:,:,np.newaxis]
 
     def do_monitor(self, num_iters: int, data_gen):
+        ppv_count = 0
         ppv_cumsums = None
         ppv_cusums = []
-        boot_ppv_cumsums = None
+        self.boot_ppv_cumsums = None
         dcl = []
         for i in range(num_iters):
-            print("iter", i)
+            print("iter", i, ppv_count)
             x, y, a = data_gen.generate(1)
-            pred_y_a = self.mdl.predict_proba(np.concatenate([x, a[:,np.newaxis]], axis=1))[:,1]
+            pred_y_a = self.mdl.predict_proba(np.concatenate([x, a[:,np.newaxis]], axis=1))[:,1:]
             pred_class = (pred_y_a > self.threshold).astype(int)
             
             if pred_class == 1:
-                iter_ppv_stat = self.expected_vals["ppv"] - (y == pred_class)
-                ppv_cumsums = np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat])if ppv_cumsums is not None else iter_ppv_stat
+                ppv_count += 1
+                iter_ppv_stat = self._get_iter_stat(y, pred_class=pred_class)
+                ppv_cumsums = np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat]) if ppv_cumsums is not None else iter_ppv_stat
                 ppv_cusums.append(np.max(ppv_cumsums))
 
-                boot_ppv_ys = np.random.binomial(n=1, p=pred_y_a - self.delta, size=boot_ppv_cumsums.shape[0] if boot_ppv_cumsums is not None else self.n_bootstrap)[:,np.newaxis]
-                boot_iter_ppv_stat = self.expected_vals["ppv"] - (boot_ppv_ys == pred_class)
-                boot_ppv_cumsums = np.concatenate([boot_ppv_cumsums + boot_iter_ppv_stat, boot_iter_ppv_stat], axis=1) if boot_ppv_cumsums is not None else boot_iter_ppv_stat
-                boot_ppv_cusums = np.max(boot_ppv_cumsums, axis=1)
-                
-                print("BOOT VS COUNT", boot_ppv_cumsums.shape, len(ppv_cusums))
-                thres = np.quantile(
-                    boot_ppv_cusums,
-                    q=self.n_bootstrap * (1 - self.alpha_spending_func(len(ppv_cusums)))/boot_ppv_cumsums.shape[0])
+                thres = self.do_bootstrap_update(pred_y_a[0], ppv_count, pred_class=pred_class)
                 dcl.append(thres)
-                boot_keep_mask = boot_ppv_cusums <= thres
-                print("boot_out_mask", boot_keep_mask.shape, boot_keep_mask.sum())
-                print("booting", boot_ppv_cumsums.shape)
-                boot_ppv_cumsums = boot_ppv_cumsums[boot_keep_mask]
-        
+                
         ppv_cusum_df = pd.DataFrame({
             "value": np.concatenate([np.array(ppv_cusums), dcl]),
             "iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
@@ -65,7 +82,7 @@ class CUSUM_naive(CUSUM):
         return ppv_cusum_df
 
 class wCUSUM(CUSUM):
-    def __init__(self, mdl, threshold: float, expected_vals: pd.Series, alpha_spending_func, propensity_beta: np.ndarray = None, subgroup_func = None):
+    def __init__(self, mdl, threshold: float, expected_vals: pd.Series, alpha_spending_func, propensity_beta: np.ndarray = None, subgroup_func = None, n_bootstrap: int = 10000, delta: float = 0):
         self.mdl = mdl
         self.threshold = threshold
         self.batch_size = 1
@@ -73,6 +90,8 @@ class wCUSUM(CUSUM):
         self.alpha_spending_func = alpha_spending_func
         self.propensity_beta = propensity_beta
         self.subgroup_func = subgroup_func
+        self.delta = delta
+        self.n_bootstrap = n_bootstrap
         
     @property
     def label(self):
@@ -88,7 +107,7 @@ class wCUSUM(CUSUM):
         # estimate class variance
         subg_weights = np.ones(1)
         if self.subgroup_func is not None:
-            x, y, a = data_gen.generate(10000)
+            x, y, a = data_gen.generate(self.n_bootstrap)
             h = self.subgroup_func(x)
             pred_y_a = self.mdl.predict_proba(np.concatenate([x, a[:,np.newaxis]], axis=1))[:,1:]
             pred_class = (pred_y_a > self.threshold).astype(int)
@@ -102,13 +121,19 @@ class wCUSUM(CUSUM):
             subg_weights = 1/np.sqrt(subg_var_ests)
         return data_gen, subg_weights
     
+    def _get_iter_stat(self, y, **kwargs):
+        return (self.expected_vals["ppv"] - (y[:, np.newaxis] == kwargs['pred_class'])) * kwargs['oracle_weight'] * kwargs['h'] * self.subg_weights[np.newaxis, :]
+    
     def do_monitor(self, num_iters: int, data_gen):
         data_gen, self.subg_weights = self._setup(data_gen)
         print("self.subg_weights", self.subg_weights)
         
+        ppv_count = 0
+        self.boot_ppv_cumsums = None
         ppv_cumsums = None
         subg_counts = None
         ppv_cusums = []
+        dcl = []
         for i in range(num_iters):
             print("iter", i, len(ppv_cusums))
             x, y, a = data_gen.generate(1)
@@ -120,14 +145,19 @@ class wCUSUM(CUSUM):
             print("weight", oracle_weight, oracle_weight * h * self.subg_weights)
             
             if pred_class == 1:
-                iter_ppv_stat = (self.expected_vals["ppv"] - (y[:, np.newaxis] == pred_class)) * oracle_weight * h * self.subg_weights[np.newaxis, :]
+                ppv_count += 1
+                iter_ppv_stat = self._get_iter_stat(y, pred_class=pred_class, oracle_weight=oracle_weight, h=h)
                 ppv_cumsums = np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat]) if ppv_cumsums is not None else iter_ppv_stat
                 subg_counts = np.concatenate([subg_counts + h, h]) if subg_counts is not None else h
                 ppv_cusums.append(np.max(ppv_cumsums[subg_counts > 0]))
+
+                thres = self.do_bootstrap_update(pred_y_a[0], ppv_count, pred_class=pred_class, oracle_weight=oracle_weight, h=h)
+                dcl.append(thres)
                 
         ppv_cusum_df = pd.DataFrame({
-            "value": np.array(ppv_cusums),
-            "iter": np.arange(len(ppv_cusums))
+            "value": np.concatenate([np.array(ppv_cusums), dcl]),
+            "iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
+            "variable": ["stat"] * len(dcl) + ["dcl"] * len(dcl),
         })
         ppv_cusum_df['label'] = self.label
         return ppv_cusum_df
@@ -142,24 +172,32 @@ class CUSUM_score(CUSUM):
         self.alpha_spending_func = alpha_spending_func
         self.subgroup_func = subgroup_func
 
+    def _get_iter_stat(self, y, **kwargs):
+        return (y - kwargs['pred_y_a']) * kwargs['h']
+
     def do_monitor(self, num_iters: int, data_gen):
         score_cumsums = None
         subg_counts = None
         score_cusums = []
+        dcl = []
         for i in range(num_iters):
             print("iter", i)
             x, y, a = data_gen.generate(1)
             h = self.subgroup_func(x)
             pred_y_a = self.mdl.predict_proba(np.concatenate([x, a[:,np.newaxis]], axis=1))[:,1]
             
-            iter_score = (y - pred_y_a) * h
+            iter_score = self._get_iter_stat(y, pred_y_a=pred_y_a, h=h)
             score_cumsums = np.concatenate([score_cumsums + iter_score, iter_score]) if score_cumsums is not None else iter_score
             subg_counts = np.concatenate([subg_counts + h, h]) if subg_counts is not None else h
             score_cusums.append(np.max(score_cumsums))
+
+            thres = self.do_bootstrap_update(pred_y_a[0], eff_count=i + 1, h=h, pred_y_a=pred_y_a)
+            dcl.append(thres)
         
         score_cusum_df = pd.DataFrame({
-            "value": np.array(score_cusums),
-            "iter": np.arange(len(score_cusums))
+            "value": np.concatenate([np.array(score_cusums), dcl]),
+            "iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
+            "variable": ["stat"] * len(dcl) + ["dcl"] * len(dcl),
         })
         score_cusum_df['label'] = self.label
         return score_cusum_df

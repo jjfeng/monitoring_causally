@@ -98,15 +98,15 @@ def main():
     cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
 
     # Score monitoring
-    # np.random.seed(seed)
-    # score_cusum = CUSUM_score(mdl, threshold=THRES, expected_vals=expected_vals, alpha_spending_func=alpha_spending_func, subgroup_func=subgroup_func)
-    # score_cusum_res_df = score_cusum.do_monitor(num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen))
+    np.random.seed(seed)
+    score_cusum = CUSUM_score(mdl, threshold=THRES, expected_vals=expected_vals, alpha_spending_func=alpha_spending_func, subgroup_func=subgroup_func)
+    score_cusum_res_df = score_cusum.do_monitor(num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen))
 
 
     # # WCUSUM avg, no intervention, oracle propensity model
-    # np.random.seed(seed)
-    # wcusum= wCUSUM(mdl, threshold=THRES, expected_vals=expected_vals, propensity_beta=None, alpha_spending_func=alpha_spending_func)
-    # wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    np.random.seed(seed)
+    wcusum= wCUSUM(mdl, threshold=THRES, expected_vals=expected_vals, propensity_beta=None, alpha_spending_func=alpha_spending_func)
+    wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
 
     # # WCUSUM with subgroups, no intervention, oracle propensity model
     # np.random.seed(seed)
@@ -120,7 +120,7 @@ def main():
 
     res_df = pd.concat([
         cusum_res_df,
-        # wcusum_res_df,
+        wcusum_res_df,
         # wcusum_int_res_df,
         # wcusum_subg_res_df,
         # score_cusum_res_df
