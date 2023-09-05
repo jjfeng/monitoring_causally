@@ -12,7 +12,7 @@ import seaborn as sns
 
 from common import get_n_jobs, read_csv, to_safe_prob
 
-from cusums import CUSUM_naive, wCUSUM
+from cusums import CUSUM_naive, wCUSUM, CUSUM_score
 
 
 def parse_args():
@@ -67,6 +67,12 @@ def parse_args():
     args.mdl_file = args.mdl_file_template.replace("JOB", str(args.job_idx))
     return args
 
+def subgroup_func(x):
+    return np.concatenate([
+        x[:,:1] < 0,
+        x[:,:1] > 0,
+    ], axis=1)
+
 def main():
     args = parse_args()
     seed = args.seed_offset + args.job_idx
@@ -81,26 +87,43 @@ def main():
         mdl = pickle.load(f)
 
     expected_vals = pd.Series({
-        'ppv': 0.8
+        'ppv': 0.9
     })
     alpha_spending_func = lambda x: 0.001
+    THRES = 0.5
 
-    # Narive CUSUM
+    # Score monitoring
+    np.random.seed(seed)
+    score_cusum = CUSUM_score(mdl, threshold=THRES, expected_vals=expected_vals, alpha_spending_func=alpha_spending_func, subgroup_func=subgroup_func)
+    score_cusum_res_df = score_cusum.do_monitor(num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen))
+
+    # # Naive CUSUM
     np.random.seed(seed)
     cusum = CUSUM_naive(mdl, threshold=0.5, expected_vals=expected_vals, alpha_spending_func=alpha_spending_func)
     cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
 
-    # WCUSUM with no intervention but oracle propensity model
+    # WCUSUM avg, no intervention, oracle propensity model
     np.random.seed(seed)
-    wcusum= wCUSUM(mdl, threshold=0.5, expected_vals=expected_vals, propensity_beta=None, alpha_spending_func=alpha_spending_func)
-    wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen))
+    wcusum= wCUSUM(mdl, threshold=THRES, expected_vals=expected_vals, propensity_beta=None, alpha_spending_func=alpha_spending_func)
+    wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
 
-    # WCUSUM with Intervention
+    # WCUSUM with subgroups, no intervention, oracle propensity model
+    np.random.seed(seed)
+    wcusum= wCUSUM(mdl, threshold=THRES, expected_vals=expected_vals, propensity_beta=None, alpha_spending_func=alpha_spending_func, subgroup_func=subgroup_func)
+    wcusum_subg_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+
+    # # WCUSUM with Intervention
     np.random.seed(seed)
     wcusum_int = wCUSUM(mdl, threshold=0.5, expected_vals=expected_vals, propensity_beta=np.zeros(data_gen.num_p), alpha_spending_func=alpha_spending_func)
-    wcusum_int_res_df = wcusum_int.do_monitor(num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen))
+    wcusum_int_res_df = wcusum_int.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
 
-    res_df = pd.concat([cusum_res_df, wcusum_res_df, wcusum_int_res_df])
+    res_df = pd.concat([
+        cusum_res_df,
+        wcusum_res_df,
+        wcusum_int_res_df,
+        wcusum_subg_res_df,
+        score_cusum_res_df
+    ])
 
     res_df.to_csv(args.out_file, index=False)
 
