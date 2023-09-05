@@ -92,7 +92,9 @@ def main():
 
     # Generate training data
     X, y = read_csv(args.dataset_file, read_A=False)
-    trainX, testX, trainY, testY = train_test_split(X.to_numpy(), y, test_size=args.train_frac)
+    trainX, testX, trainY, testY = train_test_split(
+        X.to_numpy(), y, test_size=args.train_frac
+    )
     print(trainX, trainY)
 
     with open(args.param_dict_file, "r") as f:
@@ -146,10 +148,10 @@ def main():
     with open(args.mdl_file, "wb") as f:
         pickle.dump(mdl, f)
 
-    pred_prob = mdl.predict_proba(testX)[:,1]
+    pred_prob = mdl.predict_proba(testX)[:, 1]
     conf_matrix = confusion_matrix(testY, pred_prob > 0.5)
-    logging.info("ppv %f", conf_matrix[1,1]/(conf_matrix[1,1] + conf_matrix[0,1]))
-    logging.info("npv %f", conf_matrix[0,0]/(conf_matrix[0,0] + conf_matrix[1,0]))
+    logging.info("ppv %f", conf_matrix[1, 1] / (conf_matrix[1, 1] + conf_matrix[0, 1]))
+    logging.info("npv %f", conf_matrix[0, 0] / (conf_matrix[0, 0] + conf_matrix[1, 0]))
 
     RocCurveDisplay.from_estimator(mdl, testX, testY)
     plt.savefig(args.plot_file)
