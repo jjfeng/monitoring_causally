@@ -11,6 +11,11 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.metrics import RocCurveDisplay
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
+
+from matplotlib import pyplot as plt
 
 from common import get_n_jobs, read_csv
 
@@ -22,6 +27,12 @@ def parse_args():
         type=int,
         default=1,
         help="job idx",
+    )
+    parser.add_argument(
+        "--train-frac",
+        type=float,
+        default=0.5,
+        help="train frac",
     )
     parser.add_argument(
         "--seed-offset",
@@ -58,10 +69,16 @@ def parse_args():
         type=str,
         default="_output/logJOB.txt",
     )
+    parser.add_argument(
+        "--plot-file-template",
+        type=str,
+        default="_output/plotJOB.png",
+    )
     args = parser.parse_args()
     args.dataset_file = args.dataset_template.replace("JOB", str(args.job_idx))
     args.log_file = args.log_file_template.replace("JOB", str(args.job_idx))
     args.mdl_file = args.mdl_file_template.replace("JOB", str(args.job_idx))
+    args.plot_file = args.plot_file_template.replace("JOB", str(args.job_idx))
     return args
 
 
@@ -75,6 +92,8 @@ def main():
 
     # Generate training data
     X, y = read_csv(args.dataset_file, read_A=False)
+    trainX, testX, trainY, testY = train_test_split(X.to_numpy(), y, test_size=args.train_frac)
+    print(trainX, trainY)
 
     with open(args.param_dict_file, "r") as f:
         full_param_dict = json.load(f)
@@ -97,8 +116,8 @@ def main():
             estimator=base_mdl, param_grid=param_dict, cv=3, n_jobs=1, verbose=4
         )
         grid_cv.fit(
-            X,
-            y,
+            trainX,
+            trainY,
         )
         logging.info("CV BEST SCORE %f", grid_cv.best_score_)
         logging.info("CV BEST PARAMS %s", grid_cv.best_params_)
@@ -118,14 +137,23 @@ def main():
 
     logging.info("training data %s", X.shape)
     mdl.fit(
-        X.to_numpy(),
-        y,
+        trainX,
+        trainY,
     )
     # logging.info(mdl.coef_)
     # logging.info(mdl.intercept_)
 
     with open(args.mdl_file, "wb") as f:
         pickle.dump(mdl, f)
+
+    pred_prob = mdl.predict_proba(testX)[:,1]
+    conf_matrix = confusion_matrix(testY, pred_prob > 0.5)
+    logging.info("ppv %f", conf_matrix[1,1]/(conf_matrix[1,1] + conf_matrix[0,1]))
+    logging.info("npv %f", conf_matrix[0,0]/(conf_matrix[0,0] + conf_matrix[1,0]))
+
+    RocCurveDisplay.from_estimator(mdl, testX, testY)
+    plt.savefig(args.plot_file)
+    print(args.plot_file)
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ import seaborn as sns
 
 from common import get_n_jobs, read_csv, to_safe_prob
 
-from cusums import CUSUM_naive
+from cusums import CUSUM_naive, wCUSUM
 
 
 def parse_args():
@@ -69,7 +69,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    np.random.seed(args.seed_offset + args.job_idx)
+    seed = args.seed_offset + args.job_idx
     logging.basicConfig(
         format="%(message)s", filename=args.log_file, level=logging.INFO
     )
@@ -84,8 +84,23 @@ def main():
         'ppv': 0.8
     })
     alpha_spending_func = lambda x: 0.001
+
+    # Narive CUSUM
+    np.random.seed(seed)
     cusum = CUSUM_naive(mdl, threshold=0.5, expected_vals=expected_vals, alpha_spending_func=alpha_spending_func)
-    res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+
+    # WCUSUM with no intervention but oracle propensity model
+    np.random.seed(seed)
+    wcusum= wCUSUM(mdl, threshold=0.5, expected_vals=expected_vals, propensity_beta=None, alpha_spending_func=alpha_spending_func)
+    wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen))
+
+    # WCUSUM with Intervention
+    np.random.seed(seed)
+    wcusum_int = wCUSUM(mdl, threshold=0.5, expected_vals=expected_vals, propensity_beta=np.zeros(data_gen.num_p), alpha_spending_func=alpha_spending_func)
+    wcusum_int_res_df = wcusum_int.do_monitor(num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen))
+
+    res_df = pd.concat([cusum_res_df, wcusum_res_df, wcusum_int_res_df])
 
     res_df.to_csv(args.out_file, index=False)
 

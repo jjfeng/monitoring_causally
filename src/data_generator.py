@@ -8,13 +8,14 @@ class DataGenerator:
         self.beta = beta
         self.x_mean = x_mean.reshape((1,-1))
         self.intercept = intercept
-        self.num_p = beta.size - 1
+        self.num_p = (beta.size - 1)//2
+        assert x_mean.size == self.num_p
         self.propensity_beta = propensity_beta
         self.propensity_intercept = propensity_intercept
 
     def _get_prob(self, X, A):
-        xa = np.concatenate([X, A[:, np.newaxis]], axis=1)
-        logit = np.matmul(xa, self.beta.reshape((-1,1))) + self.intercept
+        a_x_xa = np.concatenate([A[:, np.newaxis], X, A[:, np.newaxis] * X], axis=1)
+        logit = np.matmul(a_x_xa, self.beta.reshape((-1,1))) + self.intercept
         return 1/(1 + np.exp(-logit))
     
     def _get_propensity(self, X):

@@ -18,8 +18,8 @@ NUM_JOBS = 1
 NUM_SEEDS = 1
 NUM_OBS = 3000
 NUM_VAR = 2
-PROPENSITY_BETA = '0,0'
-SOURCE_BETA = '1,1,1'
+PROPENSITY_BETA = '1,1'
+SOURCE_BETA = '1,0,1,1,1'
 TARGET_BETA = "1,1,0"
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 X_TARGET_MEAN = ",".join(["0"] * NUM_VAR)
@@ -36,7 +36,7 @@ def make_train_data(env, outdir, c):
         '--data-type',
         'simple',
         '--num-obs',
-        100,
+        10000,
         '--seed-offset',
         0,
         '--x-mean',
@@ -65,16 +65,20 @@ def train_ml(env, outdir, c):
     targets = [
         join(outdir, 'mdl.pkl'),
         join(outdir, 'log_ml.txt'),
+        join(outdir, 'perf_ml.png'),
     ]
     cmd = [
         'python train_ml.py',
         '--seed-offset',
         0,
+        '--train-frac',
+        0.5,
         '--model',
         'RandomForestClassifier',
         '--data ${SOURCES[0]}',
         '--mdl ${TARGETS[0]}',
         '--log ${TARGETS[1]}',
+        '--plot ${TARGETS[2]}',
     ]
     # cmd = [
     #     'python run_script.py',
