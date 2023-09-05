@@ -58,6 +58,7 @@ class CUSUM_naive(CUSUM):
         ppv_cusums = []
         self.boot_cumsums = None
         dcl = []
+        actual_iters = []
         for i in range(num_iters):
             print("iter", i, ppv_count)
             x, y, a = data_gen.generate(1)
@@ -65,6 +66,7 @@ class CUSUM_naive(CUSUM):
             pred_class = (pred_y_a > self.threshold).astype(int)
             
             if pred_class == 1:
+                actual_iters.append(i)
                 ppv_count += 1
                 iter_ppv_stat = self._get_iter_stat(y, pred_class=pred_class)
                 ppv_cumsums = np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat]) if ppv_cumsums is not None else iter_ppv_stat
@@ -75,7 +77,8 @@ class CUSUM_naive(CUSUM):
                 
         ppv_cusum_df = pd.DataFrame({
             "value": np.concatenate([np.array(ppv_cusums), dcl]),
-            "iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
+            "eff_iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
+            "actual_iter": np.concatenate([actual_iters, actual_iters]),
             "variable": ["stat"] * len(dcl) + ["dcl"] * len(dcl),
         })
         ppv_cusum_df['label'] = self.label
@@ -134,6 +137,7 @@ class wCUSUM(CUSUM):
         subg_counts = None
         ppv_cusums = []
         dcl = []
+        actual_iters = []
         for i in range(num_iters):
             print("iter", i, len(ppv_cusums))
             x, y, a = data_gen.generate(1)
@@ -145,6 +149,7 @@ class wCUSUM(CUSUM):
             print("weight", oracle_weight, oracle_weight * h * self.subg_weights)
             
             if pred_class == 1:
+                actual_iters.append(i)
                 ppv_count += 1
                 iter_ppv_stat = self._get_iter_stat(y, pred_class=pred_class, oracle_weight=oracle_weight, h=h)
                 ppv_cumsums = np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat]) if ppv_cumsums is not None else iter_ppv_stat
@@ -156,7 +161,8 @@ class wCUSUM(CUSUM):
                 
         ppv_cusum_df = pd.DataFrame({
             "value": np.concatenate([np.array(ppv_cusums), dcl]),
-            "iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
+            "eff_iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
+            "actual_iter": np.concatenate([actual_iters, actual_iters]),
             "variable": ["stat"] * len(dcl) + ["dcl"] * len(dcl),
         })
         ppv_cusum_df['label'] = self.label
@@ -199,7 +205,8 @@ class CUSUM_score(CUSUM):
         
         score_cusum_df = pd.DataFrame({
             "value": np.concatenate([np.array(score_cusums), dcl]),
-            "iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
+            "eff_iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
+            "actual_iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
             "variable": ["stat"] * len(dcl) + ["dcl"] * len(dcl),
         })
         score_cusum_df['label'] = self.label

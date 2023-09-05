@@ -13,13 +13,13 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 BATCH_SIZE = 1000
-NUM_ITERS = 100
+NUM_ITERS = 50
 NUM_JOBS = 1
 NUM_SEEDS = 1
 NUM_OBS = 3000
 NUM_VAR = 2
 PROPENSITY_BETA = '0.5,0.5'
-SOURCE_BETA = '1,0,1,1,1'
+SOURCE_BETA = '0.5,0,0.5,0.5,0'
 TARGET_BETA = "1,1,0"
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 X_TARGET_MEAN = ",".join(["0"] * NUM_VAR)
@@ -36,7 +36,7 @@ def make_train_data(env, outdir, c):
         '--data-type',
         'simple',
         '--num-obs',
-        10000,
+        500,
         '--seed-offset',
         0,
         '--x-mean',
@@ -146,6 +146,7 @@ def monitor(env, outdir, c):
     targets = [
         join(outdir, 'log.txt'),
         join(outdir, 'res.csv'),
+        join(outdir, 'plot_cusum.png'),
     ]
 
     cmd = [
@@ -160,6 +161,7 @@ def monitor(env, outdir, c):
         c['seed'],
         '--log-file ${TARGETS[0]}',
         '--out-file ${TARGETS[1]}',
+        '--plot-file ${TARGETS[2]}',
     ]
     # cmd = [
     #     'python run_script.py',

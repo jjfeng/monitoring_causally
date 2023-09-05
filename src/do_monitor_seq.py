@@ -69,6 +69,11 @@ def parse_args():
         default="_output/out.csv",
     )
     parser.add_argument(
+        "--plot-file-template",
+        type=str,
+        default="_output/plotJOB.png",
+    )
+    parser.add_argument(
         "--log-file-template",
         type=str,
         default="_output/logJOB.txt",
@@ -77,12 +82,15 @@ def parse_args():
     args.data_gen_file = args.data_gen_template.replace("JOB", str(args.job_idx))
     args.log_file = args.log_file_template.replace("JOB", str(args.job_idx))
     args.mdl_file = args.mdl_file_template.replace("JOB", str(args.job_idx))
+    args.plot_file = args.plot_file_template.replace("JOB", str(args.job_idx))
     return args
 
 def subgroup_func(x):
     return np.concatenate([
         x[:,:1] < 0,
         x[:,:1] > 0,
+        x[:,1:2] < 0,
+        x[:,1:2] > 0,
     ], axis=1)
 
 def main():
@@ -143,13 +151,13 @@ def main():
     plt.clf()
     sns.lineplot(
         data=res_df,
-        x="iter",
+        x="actual_iter",
         y="value",
         hue="label",
         style="variable"
     )
     plt.legend()
-    plt.savefig("_output/test.png")
+    plt.savefig(args.plot_file)
 
 
 if __name__ == "__main__":
