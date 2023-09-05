@@ -36,6 +36,12 @@ def parse_args():
         help="iters for monitoring",
     )
     parser.add_argument(
+        "--alpha",
+        type=float,
+        default=0.1,
+        help="Type I error",
+    )
+    parser.add_argument(
         "--delta",
         type=float,
         default=0,
@@ -112,7 +118,7 @@ def main():
         mdl = pickle.load(f)
 
     expected_vals = pd.Series({"ppv": 0.9})
-    alpha_spending_func = lambda x: min(1, 0.001 * x)
+    alpha_spending_func = lambda x: min(1, args.alpha/args.num_iters * x)
     THRES = 0.5
 
     # Naive CUSUM

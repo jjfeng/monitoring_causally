@@ -29,7 +29,8 @@ def parse_args():
         default="simple",
     )
     parser.add_argument("--x-mean", type=str, help="x mean")
-    parser.add_argument("--beta", type=str, help="comma separated list of coefficients")
+    parser.add_argument("--source-beta", type=str, help="comma separated list of coefficients")
+    parser.add_argument("--target-beta", type=str, help="comma separated list of coefficients")
     parser.add_argument(
         "--num-obs",
         type=int,
@@ -46,17 +47,31 @@ def parse_args():
         default="_output/datagen.pkl",
     )
     parser.add_argument(
-        "--out-file-template",
+        "--out-source-file-template",
+        type=str,
+        default="_output/dataJOB.csv",
+    )
+    parser.add_argument(
+        "--out-target-file-template",
         type=str,
         default="_output/dataJOB.csv",
     )
     args = parser.parse_args()
-    args.beta = np.array(list(map(float, args.beta.split(","))))
+    args.source_beta = np.array(list(map(float, args.source_beta.split(","))))
+    args.target_beta = np.array(list(map(float, args.target_beta.split(","))))
     args.x_mean = np.array(list(map(float, args.x_mean.split(","))))
     args.log_file = args.log_file_template.replace("JOB", str(args.job_idx))
-    args.out_file = args.out_file_template.replace("JOB", str(args.job_idx))
+    args.out_source_file = args.out_source_file_template.replace("JOB", str(args.job_idx))
+    args.out_target_file = args.out_target_file_template.replace("JOB", str(args.job_idx))
     return args
 
+def output_data(dg, args, out_file):
+    X, y, A = dg.generate(args.num_obs)
+    df = pd.DataFrame(X)
+    df["A"] = A
+    df["y"] = y
+    print(df)
+    df.to_csv(out_file, index=False)
 
 def main():
     args = parse_args()
@@ -67,19 +82,15 @@ def main():
     logging.info(args)
 
     # TODO: vary the type of data being returned based on data type string
-    dg = DataGenerator(source_beta=args.beta, intercept=0, x_mean=args.x_mean)
-
-    X, y, A = dg.generate(args.num_obs)
-    df = pd.DataFrame(X)
-    df["A"] = A
-    df["y"] = y
-    print(df)
-    df.to_csv(args.out_file, index=False)
+    dg = DataGenerator(source_beta=args.source_beta, target_beta=args.target_beta, intercept=0, x_mean=args.x_mean, beta_shift_time=1)
+    output_data(dg, args, args.out_source_file)
 
     if args.out_data_gen_file:
         with open(args.out_data_gen_file, "wb") as f:
             pickle.dump(dg, f)
 
+    dg.update_time(2)
+    output_data(dg, args, args.out_target_file)
 
 if __name__ == "__main__":
     main()

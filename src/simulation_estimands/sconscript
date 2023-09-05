@@ -12,21 +12,23 @@ localenv = env.Clone()
 # Set up state
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
-BATCH_SIZE = 1000
-NUM_ITERS = 100
-NUM_JOBS = 1
-NUM_SEEDS = 2
+NUM_ITERS = 200
+NUM_SEEDS = 1
 NUM_VAR = 2
+BETA_SHIFT_TIME = 10
+DELTA = 0.01
+ALPHA = 0.1
 PROPENSITY_BETA = '0.5,0.5'
 SOURCE_BETA = '0.5,0,0.5,0.5,0'
-TARGET_BETA = '0.5,0,0.5,0.5,0'
+TARGET_BETA = '0,0,0,1,0.2'
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 X_TARGET_MEAN = ",".join(["0"] * NUM_VAR)
 
 @nest.add_target_with_env(localenv)
 def make_train_data(env, outdir, c):
     targets = [
-        join(outdir, 'train_data.csv'),
+        join(outdir, 'source_data.csv'),
+        join(outdir, 'target_data.csv'),
     ]
 
     cmd = [
@@ -40,9 +42,12 @@ def make_train_data(env, outdir, c):
         0,
         '--x-mean',
         X_SOURCE_MEAN,
-        '--beta',
+        '--source-beta',
         SOURCE_BETA,
-        '--out-file ${TARGETS[0]}',
+        '--target-beta',
+        TARGET_BETA,
+        '--out-source-file ${TARGETS[0]}',
+        '--out-target-file ${TARGETS[1]}',
     ]
     # cmd = [
     #     'python run_script.py',
@@ -64,7 +69,8 @@ def train_ml(env, outdir, c):
     targets = [
         join(outdir, 'mdl.pkl'),
         join(outdir, 'log_ml.txt'),
-        join(outdir, 'perf_ml.png'),
+        join(outdir, 'perf_ml_source.png'),
+        join(outdir, 'perf_ml_target.png'),
     ]
     cmd = [
         'python train_ml.py',
@@ -74,10 +80,12 @@ def train_ml(env, outdir, c):
         0.5,
         '--model',
         'RandomForestClassifier',
-        '--data ${SOURCES[0]}',
+        '--train-data ${SOURCES[0]}',
+        '--test-data ${SOURCES[1]}',
         '--mdl ${TARGETS[0]}',
         '--log ${TARGETS[1]}',
-        '--plot ${TARGETS[2]}',
+        '--plot-source ${TARGETS[2]}',
+        '--plot-target ${TARGETS[3]}',
     ]
     # cmd = [
     #     'python run_script.py',
@@ -109,7 +117,7 @@ def make_prechange_environment(env, outdir, c):
         '--propensity-beta',
         PROPENSITY_BETA,
         '--beta-shift-time',
-        50,
+        BETA_SHIFT_TIME,
         '--target-beta',
         TARGET_BETA,
         '--source-beta',
@@ -149,8 +157,10 @@ def monitor(env, outdir, c):
         'python do_monitor_seq.py',
         '--data-gen ${SOURCES[0]}',
         '--mdl ${SOURCES[1]}',
-        '--batch',
-        BATCH_SIZE,
+        '--alpha',
+        ALPHA,
+        '--delta',
+        DELTA,
         '--num-iters',
         NUM_ITERS,
         '--seed-offset',

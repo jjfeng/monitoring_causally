@@ -55,9 +55,14 @@ def parse_args():
         "--calib-method", type=str, choices=["sigmoid", "isotonic"], default="sigmoid"
     )
     parser.add_argument(
-        "--dataset-template",
+        "--train-dataset-template",
         type=str,
-        default="_output/dataJOB.csv",
+        default="_output/train_dataJOB.csv",
+    )
+    parser.add_argument(
+        "--test-dataset-template",
+        type=str,
+        default="_output/test_dataJOB.csv",
     )
     parser.add_argument(
         "--mdl-file-template",
@@ -70,17 +75,33 @@ def parse_args():
         default="_output/logJOB.txt",
     )
     parser.add_argument(
-        "--plot-file-template",
+        "--plot-source-file-template",
+        type=str,
+        default="_output/plotJOB.png",
+    )
+    parser.add_argument(
+        "--plot-target-file-template",
         type=str,
         default="_output/plotJOB.png",
     )
     args = parser.parse_args()
-    args.dataset_file = args.dataset_template.replace("JOB", str(args.job_idx))
+    args.train_dataset_file = args.train_dataset_template.replace("JOB", str(args.job_idx))
+    args.test_dataset_file = args.test_dataset_template.replace("JOB", str(args.job_idx))
     args.log_file = args.log_file_template.replace("JOB", str(args.job_idx))
     args.mdl_file = args.mdl_file_template.replace("JOB", str(args.job_idx))
-    args.plot_file = args.plot_file_template.replace("JOB", str(args.job_idx))
+    args.plot_source_file = args.plot_source_file_template.replace("JOB", str(args.job_idx))
+    args.plot_target_file = args.plot_target_file_template.replace("JOB", str(args.job_idx))
     return args
 
+def do_evaluate_model(mdl, testX, testY, plot_file: str, prefix: str):
+    pred_prob = mdl.predict_proba(testX)[:, 1]
+    conf_matrix = confusion_matrix(testY, pred_prob > 0.5)
+    logging.info("ppv %s %f", prefix, conf_matrix[1, 1] / (conf_matrix[1, 1] + conf_matrix[0, 1]))
+    logging.info("npv %s %f", prefix, conf_matrix[0, 0] / (conf_matrix[0, 0] + conf_matrix[1, 0]))
+
+    RocCurveDisplay.from_estimator(mdl, testX, testY)
+    plt.savefig(plot_file)
+    print(plot_file)
 
 def main():
     args = parse_args()
@@ -91,7 +112,7 @@ def main():
     logging.info(args)
 
     # Generate training data
-    X, y = read_csv(args.dataset_file, read_A=False)
+    X, y = read_csv(args.train_dataset_file, read_A=False)
     trainX, testX, trainY, testY = train_test_split(
         X.to_numpy(), y, test_size=args.train_frac
     )
@@ -148,14 +169,12 @@ def main():
     with open(args.mdl_file, "wb") as f:
         pickle.dump(mdl, f)
 
-    pred_prob = mdl.predict_proba(testX)[:, 1]
-    conf_matrix = confusion_matrix(testY, pred_prob > 0.5)
-    logging.info("ppv %f", conf_matrix[1, 1] / (conf_matrix[1, 1] + conf_matrix[0, 1]))
-    logging.info("npv %f", conf_matrix[0, 0] / (conf_matrix[0, 0] + conf_matrix[1, 0]))
+    # Evaluate the model on source data
+    target_testX, target_testY = read_csv(args.test_dataset_file, read_A=False)
+    do_evaluate_model(mdl, testX, testY, plot_file=args.plot_source_file, prefix="source")
+    do_evaluate_model(mdl, target_testX, target_testY, plot_file=args.plot_target_file, prefix="target")
 
-    RocCurveDisplay.from_estimator(mdl, testX, testY)
-    plt.savefig(args.plot_file)
-    print(args.plot_file)
+
 
 
 if __name__ == "__main__":

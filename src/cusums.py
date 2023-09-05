@@ -30,7 +30,6 @@ class CUSUM:
         return np.any(merged_df.value_stat > merged_df.value_dcl)
 
     def do_bootstrap_update(self, pred_y_a: np.ndarray, eff_count: int, **kwargs):
-        print("pred_y_a", pred_y_a.shape)
         boot_ys = np.random.binomial(
             n=1,
             p=pred_y_a - self.delta,
@@ -39,18 +38,13 @@ class CUSUM:
             else self.n_bootstrap,
         )[:, np.newaxis]
         boot_iter_stat = self._get_iter_stat(boot_ys, **kwargs)
-        if self.boot_cumsums is not None:
-            print("self.boot_cumsums", self.boot_cumsums.shape)
-        print("boot_iter_stat", boot_iter_stat.shape)
         self.boot_cumsums = (
             np.concatenate([self.boot_cumsums + boot_iter_stat, boot_iter_stat], axis=1)
             if self.boot_cumsums is not None
             else boot_iter_stat
         )
-        print("POST self.boot_cumsums", self.boot_cumsums.shape)
         boot_cusums = np.max(np.max(self.boot_cumsums, axis=1), axis=1)
-        print("boot_cusums", boot_cusums.shape)
-
+        
         thres = np.quantile(
             boot_cusums,
             q=self.n_bootstrap
@@ -58,7 +52,6 @@ class CUSUM:
             / self.boot_cumsums.shape[0],
         )
         boot_keep_mask = boot_cusums <= thres
-        print("boot_keep_mask", boot_keep_mask.shape)
         self.boot_cumsums = self.boot_cumsums[boot_keep_mask]
         return thres
 
@@ -89,6 +82,7 @@ class CUSUM_naive(CUSUM):
         ]
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
+        print("Do %s monitor" % self.label)
         ppv_count = 0
         ppv_cumsums = None
         ppv_cusums = []
@@ -198,9 +192,9 @@ class wCUSUM(CUSUM):
         )
 
     def do_monitor(self, num_iters: int, data_gen):
+        print("Do %s monitor" % self.label)
         data_gen, self.subg_weights = self._setup(data_gen)
-        print("self.subg_weights", self.subg_weights)
-
+        
         ppv_count = 0
         self.boot_cumsums = None
         ppv_cumsums = None
@@ -286,6 +280,7 @@ class CUSUM_score(CUSUM):
         return ((y - kwargs["mdl_pred"]) * kwargs["h"])[:, np.newaxis, :]
 
     def do_monitor(self, num_iters: int, data_gen):
+        print("Do %s monitor" % self.label)
         self.boot_cumsums = None
         score_cumsums = None
         subg_counts = None
