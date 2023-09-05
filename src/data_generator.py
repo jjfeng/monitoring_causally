@@ -7,19 +7,30 @@ class DataGenerator:
     scale = 2
 
     def __init__(
-        self, beta, intercept, x_mean, propensity_beta=None, propensity_intercept=0
+        self, source_beta: np.ndarray, target_beta: np.ndarray, intercept, x_mean: np.ndarray, propensity_beta: np.ndarray=None, propensity_intercept=0, beta_shift_time:int=None
     ):
-        self.beta = beta
+        self.source_beta = source_beta
+        self.target_beta = target_beta
+        self.beta_shift_time = beta_shift_time
         self.x_mean = x_mean.reshape((1, -1))
         self.intercept = intercept
-        self.num_p = (beta.size - 1) // 2
+        self.num_p = (source_beta.size - 1) // 2
         assert x_mean.size == self.num_p
         self.propensity_beta = propensity_beta
         self.propensity_intercept = propensity_intercept
+        self.curr_time = 0
+        
+    def update_time(self, curr_time: int):
+        self.curr_time = curr_time
+    
+    @property
+    def is_shifted(self):
+        return self.curr_time > self.beta_shift_time if self.beta_shift_time is not None else False
 
     def _get_prob(self, X, A):
         a_x_xa = np.concatenate([A[:, np.newaxis], X, A[:, np.newaxis] * X], axis=1)
-        logit = np.matmul(a_x_xa, self.beta.reshape((-1, 1))) + self.intercept
+        beta = self.source_beta if not self.is_shifted else self.target_beta
+        logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         return 1 / (1 + np.exp(-logit))
 
     def _get_propensity(self, X):

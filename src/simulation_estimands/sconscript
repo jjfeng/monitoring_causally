@@ -108,7 +108,7 @@ def make_prechange_environment(env, outdir, c):
         X_SOURCE_MEAN,
         '--propensity-beta',
         PROPENSITY_BETA,
-        '--shift-beta',
+        '--beta-shift-time',
         50,
         '--target-beta',
         TARGET_BETA,

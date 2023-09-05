@@ -3,6 +3,7 @@ import copy
 import numpy as np
 import pandas as pd
 
+from data_generator import DataGenerator
 
 class CUSUM:
     def __init__(
@@ -87,7 +88,7 @@ class CUSUM_naive(CUSUM):
             :, :, np.newaxis
         ]
 
-    def do_monitor(self, num_iters: int, data_gen):
+    def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         ppv_count = 0
         ppv_cumsums = None
         ppv_cusums = []
@@ -95,6 +96,7 @@ class CUSUM_naive(CUSUM):
         dcl = []
         actual_iters = []
         for i in range(num_iters):
+            data_gen.update_time(i)
             print("iter", i, ppv_count)
             x, y, a = data_gen.generate(1)
             pred_y_a = self.mdl.predict_proba(
@@ -207,6 +209,7 @@ class wCUSUM(CUSUM):
         dcl = []
         actual_iters = []
         for i in range(num_iters):
+            data_gen.update_time(i)
             print("iter", i, len(ppv_cusums))
             x, y, a = data_gen.generate(1)
             h = self.subgroup_func(x) if self.subgroup_func is not None else np.ones(1)
@@ -289,6 +292,7 @@ class CUSUM_score(CUSUM):
         score_cusums = []
         dcl = []
         for i in range(num_iters):
+            data_gen.update_time(i)
             print("iter", i)
             x, y, a = data_gen.generate(1)
             h = self.subgroup_func(x)

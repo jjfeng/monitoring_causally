@@ -44,7 +44,8 @@ def parse_args():
         default="_output/datagen.pkl",
     )
     args = parser.parse_args()
-    args.beta = np.array(list(map(float, args.beta.split(","))))
+    args.source_beta = np.array(list(map(float, args.source_beta.split(","))))
+    args.target_beta = np.array(list(map(float, args.target_beta.split(","))))
     args.propensity_beta = np.array(list(map(float, args.propensity_beta.split(","))))
     args.x_mean = np.array(list(map(float, args.x_mean.split(","))))
     args.log_file = args.log_file_template.replace("JOB", str(args.job_idx))
@@ -61,7 +62,9 @@ def main():
 
     # TODO: vary the type of data being returned based on data type string
     dg = DataGenerator(
-        beta=args.beta,
+        source_beta=args.source_beta,
+        target_beta=args.target_beta,
+        beta_shift_time=args.beta_shift_time,
         intercept=0,
         x_mean=args.x_mean,
         propensity_beta=args.propensity_beta,

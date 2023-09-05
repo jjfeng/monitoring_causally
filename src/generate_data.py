@@ -67,7 +67,7 @@ def main():
     logging.info(args)
 
     # TODO: vary the type of data being returned based on data type string
-    dg = DataGenerator(beta=args.beta, intercept=0, x_mean=args.x_mean)
+    dg = DataGenerator(source_beta=args.beta, intercept=0, x_mean=args.x_mean)
 
     X, y, A = dg.generate(args.num_obs)
     df = pd.DataFrame(X)
