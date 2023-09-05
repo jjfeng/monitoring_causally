@@ -3,13 +3,6 @@ import copy
 import numpy as np
 import pandas as pd
 
-class PerfAccumulator:
-    def __init__(self):
-        self.ppv_cum_list = []
-
-    def update(self, pred_y_a, y, x, a):
-        self.ppv_cum_list.append(pred_y_a - y)
-
 
 class CUSUM:
     def __init__(self, mdl, batch_size: int, alpha_spending_func):
@@ -23,16 +16,20 @@ class CUSUM:
 
 class CUSUM_naive(CUSUM):
     label = 'naive'
-    def __init__(self, mdl, threshold: float, expected_vals: pd.Series, alpha_spending_func):
+    def __init__(self, mdl, threshold: float, expected_vals: pd.Series, alpha_spending_func, n_bootstrap: int = 1000, delta: float = 0):
         self.mdl = mdl
         self.threshold = threshold
         self.batch_size = 1
         self.expected_vals = expected_vals
         self.alpha_spending_func = alpha_spending_func
+        self.n_bootstrap = n_bootstrap
+        self.delta = delta
 
     def do_monitor(self, num_iters: int, data_gen):
         ppv_cumsums = None
         ppv_cusums = []
+        boot_ppv_cumsums = None
+        dcl = []
         for i in range(num_iters):
             print("iter", i)
             x, y, a = data_gen.generate(1)
@@ -43,10 +40,26 @@ class CUSUM_naive(CUSUM):
                 iter_ppv_stat = self.expected_vals["ppv"] - (y == pred_class)
                 ppv_cumsums = np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat])if ppv_cumsums is not None else iter_ppv_stat
                 ppv_cusums.append(np.max(ppv_cumsums))
+
+                boot_ppv_ys = np.random.binomial(n=1, p=pred_y_a - self.delta, size=boot_ppv_cumsums.shape[0] if boot_ppv_cumsums is not None else self.n_bootstrap)[:,np.newaxis]
+                boot_iter_ppv_stat = self.expected_vals["ppv"] - (boot_ppv_ys == pred_class)
+                boot_ppv_cumsums = np.concatenate([boot_ppv_cumsums + boot_iter_ppv_stat, boot_iter_ppv_stat], axis=1) if boot_ppv_cumsums is not None else boot_iter_ppv_stat
+                boot_ppv_cusums = np.max(boot_ppv_cumsums, axis=1)
+                
+                print("BOOT VS COUNT", boot_ppv_cumsums.shape, len(ppv_cusums))
+                thres = np.quantile(
+                    boot_ppv_cusums,
+                    q=self.n_bootstrap * (1 - self.alpha_spending_func(len(ppv_cusums)))/boot_ppv_cumsums.shape[0])
+                dcl.append(thres)
+                boot_keep_mask = boot_ppv_cusums <= thres
+                print("boot_out_mask", boot_keep_mask.shape, boot_keep_mask.sum())
+                print("booting", boot_ppv_cumsums.shape)
+                boot_ppv_cumsums = boot_ppv_cumsums[boot_keep_mask]
         
         ppv_cusum_df = pd.DataFrame({
-            "value": np.array(ppv_cusums),
-            "iter": np.arange(ppv_cumsums.size)
+            "value": np.concatenate([np.array(ppv_cusums), dcl]),
+            "iter": np.concatenate([np.arange(len(dcl)), np.arange(len(dcl))]),
+            "variable": ["stat"] * len(dcl) + ["dcl"] * len(dcl),
         })
         ppv_cusum_df['label'] = self.label
         return ppv_cusum_df
