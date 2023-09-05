@@ -13,14 +13,13 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 BATCH_SIZE = 1000
-NUM_ITERS = 50
+NUM_ITERS = 100
 NUM_JOBS = 1
-NUM_SEEDS = 1
-NUM_OBS = 3000
+NUM_SEEDS = 2
 NUM_VAR = 2
 PROPENSITY_BETA = '0.5,0.5'
 SOURCE_BETA = '0.5,0,0.5,0.5,0'
-TARGET_BETA = "1,1,0"
+TARGET_BETA = '0.5,0,0.5,0.5,0'
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 X_TARGET_MEAN = ",".join(["0"] * NUM_VAR)
 
@@ -109,7 +108,11 @@ def make_prechange_environment(env, outdir, c):
         X_SOURCE_MEAN,
         '--propensity-beta',
         PROPENSITY_BETA,
-        '--beta',
+        '--shift-beta',
+        50,
+        '--target-beta',
+        TARGET_BETA,
+        '--source-beta',
         SOURCE_BETA,
         '--out-data-gen-file ${TARGETS[0]}',
     ]
@@ -128,13 +131,6 @@ def make_prechange_environment(env, outdir, c):
         [],
         ' '.join(map(str, cmd)))
 
-nest.add(
-    'models',
-    [
-        'oracle',
-        # 'randomforest'
-    ]
-)
 nest.add_aggregate('res_agg', list)
 nest.add(
     'seed',

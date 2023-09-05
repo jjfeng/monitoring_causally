@@ -32,9 +32,19 @@ def parse_args():
         help="comma separated list of coefficients"
     )
     parser.add_argument(
-        "--beta",
+        "--source-beta",
         type=str,
         help="comma separated list of coefficients"
+    )
+    parser.add_argument(
+        "--target-beta",
+        type=str,
+        help="comma separated list of coefficients"
+    )
+    parser.add_argument(
+        "--beta-shift-time",
+        type=int,
+        default=None
     )
     parser.add_argument(
         "--log-file-template",

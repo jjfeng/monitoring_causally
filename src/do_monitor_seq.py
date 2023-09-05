@@ -116,27 +116,31 @@ def main():
     np.random.seed(seed)
     cusum = CUSUM_naive(mdl, threshold=0.5, expected_vals=expected_vals, alpha_spending_func=alpha_spending_func, delta=args.delta, n_bootstrap=args.n_boot)
     cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-
+    logging.info("cusum fired? %d", cusum.is_fired_alarm(cusum_res_df))
+    
     # Score monitoring
     np.random.seed(seed)
     score_cusum = CUSUM_score(mdl, threshold=THRES, expected_vals=expected_vals, alpha_spending_func=alpha_spending_func, subgroup_func=subgroup_func, delta=args.delta, n_bootstrap=args.n_boot)
     score_cusum_res_df = score_cusum.do_monitor(num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen))
-
-
+    logging.info("score_cusum fired? %d", score_cusum.is_fired_alarm(score_cusum_res_df))
+    
     # # WCUSUM avg, no intervention, oracle propensity model
     np.random.seed(seed)
     wcusum= wCUSUM(mdl, threshold=THRES, expected_vals=expected_vals, propensity_beta=None, alpha_spending_func=alpha_spending_func, delta=args.delta, n_bootstrap=args.n_boot)
     wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("wcusum fired? %d", wcusum.is_fired_alarm(wcusum_res_df))
 
     # # WCUSUM with subgroups, no intervention, oracle propensity model
     np.random.seed(seed)
-    wcusum= wCUSUM(mdl, threshold=THRES, expected_vals=expected_vals, propensity_beta=None, alpha_spending_func=alpha_spending_func, subgroup_func=subgroup_func, delta=args.delta, n_bootstrap=args.n_boot)
-    wcusum_subg_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    wcusum_subg= wCUSUM(mdl, threshold=THRES, expected_vals=expected_vals, propensity_beta=None, alpha_spending_func=alpha_spending_func, subgroup_func=subgroup_func, delta=args.delta, n_bootstrap=args.n_boot)
+    wcusum_subg_res_df = wcusum_subg.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("wcusum_subg fired? %d", wcusum_subg.is_fired_alarm(wcusum_subg_res_df))
 
     # # # WCUSUM with Intervention
     np.random.seed(seed)
     wcusum_int = wCUSUM(mdl, threshold=0.5, expected_vals=expected_vals, propensity_beta=np.zeros(data_gen.num_p), alpha_spending_func=alpha_spending_func, delta=args.delta, n_bootstrap=args.n_boot)
     wcusum_int_res_df = wcusum_int.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("wcusum_int fired? %d", wcusum_int.is_fired_alarm(wcusum_int_res_df))
 
     res_df = pd.concat([
         cusum_res_df,
@@ -158,6 +162,7 @@ def main():
     )
     plt.legend()
     plt.savefig(args.plot_file)
+    print(args.plot_file)
 
 
 if __name__ == "__main__":

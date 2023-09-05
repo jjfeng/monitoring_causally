@@ -18,6 +18,12 @@ class CUSUM:
     def _get_iter_stat(self, y, **kwargs):
         raise NotImplementedError()
 
+    def is_fired_alarm(self, res_df: pd.DataFrame):
+        stat_df = res_df[res_df.variable == 'stat']
+        dcl_df = res_df[res_df.variable == 'dcl']
+        merged_df = stat_df.merge(dcl_df, on=["eff_iter", "actual_iter"], suffixes=['_stat', '_dcl'])
+        return np.any(merged_df.value_stat > merged_df.value_dcl)
+
     def do_bootstrap_update(self, pred_y_a: np.ndarray, eff_count: int, **kwargs):
         print("pred_y_a", pred_y_a.shape)
         boot_ys = np.random.binomial(n=1, p=pred_y_a - self.delta, size=self.boot_cumsums.shape[0] if self.boot_cumsums is not None else self.n_bootstrap)[:, np.newaxis]
