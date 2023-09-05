@@ -1,0 +1,207 @@
+import os
+
+from os.path import join
+from nestly.scons import SConsWrap
+from nestly import Nest
+from SCons.Script import Environment, Command, AddOption
+import numpy as np
+
+Import('env')
+localenv = env.Clone()
+
+# Set up state
+nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
+
+BATCH_SIZE = 1000
+NUM_ITERS = 40
+NUM_JOBS = 1
+NUM_SEEDS = 1
+NUM_OBS = 3000
+NUM_VAR = 2
+PROPENSITY_BETA = '0,0'
+SOURCE_BETA = '1,1,1'
+TARGET_BETA = "1,1,0"
+X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
+X_TARGET_MEAN = ",".join(["0"] * NUM_VAR)
+
+@nest.add_target_with_env(localenv)
+def make_train_data(env, outdir, c):
+    targets = [
+        join(outdir, 'train_data.csv'),
+    ]
+
+    cmd = [
+        'python',
+        'generate_data.py',
+        '--data-type',
+        'simple',
+        '--num-obs',
+        100,
+        '--seed-offset',
+        0,
+        '--x-mean',
+        X_SOURCE_MEAN,
+        '--beta',
+        SOURCE_BETA,
+        '--out-file ${TARGETS[0]}',
+    ]
+    # cmd = [
+    #     'python run_script.py',
+    #     '--cluster',
+    #     localenv['cluster'],
+    #     '--target-template-file',
+    #     '${TARGETS[0]}',
+    #     '--num-jobs',
+    #     NUM_JOBS,
+    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+    # ]
+    return env.Command(
+        targets,
+        [],
+        ' '.join(map(str, cmd)))
+
+@nest.add_target_with_env(localenv)
+def train_ml(env, outdir, c):
+    targets = [
+        join(outdir, 'mdl.pkl'),
+        join(outdir, 'log_ml.txt'),
+    ]
+    cmd = [
+        'python train_ml.py',
+        '--seed-offset',
+        0,
+        '--model',
+        'RandomForestClassifier',
+        '--data ${SOURCES[0]}',
+        '--mdl ${TARGETS[0]}',
+        '--log ${TARGETS[1]}',
+    ]
+    # cmd = [
+    #     'python run_script.py',
+    #     '--cluster',
+    #     localenv['cluster'],
+    #     '--target-template-file',
+    #     '${TARGETS[0]}',
+    #     '--num-jobs',
+    #     NUM_JOBS,
+    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+    # ]
+    return env.Command(
+        targets,
+        c['make_train_data'],
+        ' '.join(map(str, cmd)))
+
+@nest.add_target_with_env(localenv)
+def make_prechange_environment(env, outdir, c):
+    targets = [
+        join(outdir, 'data_gen.pkl'),
+    ]
+
+    cmd = [
+        'python make_environment.py',
+        '--data-type',
+        'simple',
+        '--x-mean',
+        X_SOURCE_MEAN,
+        '--propensity-beta',
+        PROPENSITY_BETA,
+        '--beta',
+        SOURCE_BETA,
+        '--out-data-gen-file ${TARGETS[0]}',
+    ]
+    # cmd = [
+    #     'python run_script.py',
+    #     '--cluster',
+    #     localenv['cluster'],
+    #     '--target-template-file',
+    #     '${TARGETS[0]}',
+    #     '--num-jobs',
+    #     NUM_JOBS,
+    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+    # ]
+    return env.Command(
+        targets,
+        [],
+        ' '.join(map(str, cmd)))
+
+nest.add(
+    'models',
+    [
+        'oracle',
+        # 'randomforest'
+    ]
+)
+nest.add_aggregate('res_agg', list)
+nest.add(
+    'seed',
+    range(NUM_SEEDS)
+)
+
+@nest.add_target_with_env(localenv)
+def monitor(env, outdir, c):
+    targets = [
+        join(outdir, 'log.txt'),
+        join(outdir, 'res.csv'),
+    ]
+
+    cmd = [
+        'python do_monitor_seq.py',
+        '--data-gen ${SOURCES[0]}',
+        '--mdl ${SOURCES[1]}',
+        '--batch',
+        BATCH_SIZE,
+        '--num-iters',
+        NUM_ITERS,
+        '--seed-offset',
+        c['seed'],
+        '--log-file ${TARGETS[0]}',
+        '--out-file ${TARGETS[1]}',
+    ]
+    # cmd = [
+    #     'python run_script.py',
+    #     '--cluster',
+    #     localenv['cluster'],
+    #     '--target-template-file',
+    #     '${TARGETS[0]}',
+    #     '--num-jobs',
+    #     NUM_JOBS,
+    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+    # ]
+    c['res_agg'].append(targets[1])
+    return env.Command(
+        targets,
+        [
+            c['make_prechange_environment'][0],
+            c['train_ml'][0],
+        ],
+        ' '.join(map(str, cmd)))
+
+nest.pop('seed')
+
+# @nest.add_target_with_env(localenv)
+# def aggregate(env, outdir, c):
+#     targets = [
+#         join(outdir, 'hist.png'),
+#     ]
+#     res_files = ','.join([join('simulation', f) for f in c['res_agg']])
+
+#     cmd = [
+#         'python aggregate.py',
+#         '--result',
+#         res_files,
+#         '--plot ${TARGETS[0]}',
+#     ]
+#     # cmd = [
+#     #     'python run_script.py',
+#     #     '--cluster',
+#     #     localenv['cluster'],
+#     #     '--target-template-file',
+#     #     '${TARGETS[0]}',
+#     #     '--num-jobs',
+#     #     NUM_JOBS,
+#     #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+#     # ]
+#     return env.Command(
+#         targets,
+#         c['res_agg'],
+#         ' '.join(map(str, cmd)))
