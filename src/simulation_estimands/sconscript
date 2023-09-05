@@ -18,7 +18,7 @@ NUM_VAR = 2
 BETA_SHIFT_TIME = 10
 DELTA = 0.01
 ALPHA = 0.1
-PROPENSITY_BETA = '1,0,0'
+PROPENSITY_BETA = '-2,0,0'
 SOURCE_BETA = '0.5,0,0.5,0.5,0'
 TARGET_BETA = '0,0,0,1,0.2'
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
@@ -114,8 +114,7 @@ def make_prechange_environment(env, outdir, c):
         'simple',
         '--x-mean',
         X_SOURCE_MEAN,
-        '--propensity-beta',
-        PROPENSITY_BETA,
+        "--propensity-beta=%s" % PROPENSITY_BETA,
         '--beta-shift-time',
         BETA_SHIFT_TIME,
         '--target-beta',
