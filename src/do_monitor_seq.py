@@ -18,6 +18,7 @@ THRES = 0.5
 
 # TODO: unify data generation so they do not differ
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="monittor a ML algorithm")
     parser.add_argument(
@@ -95,7 +96,6 @@ def parse_args():
     return args
 
 
-
 def subgroup_func(x, pred_y_a):
     pred_pos = pred_y_a > THRES
     return np.concatenate(
@@ -110,9 +110,10 @@ def subgroup_func(x, pred_y_a):
         axis=1,
     )
 
+
 def score_subgroup_func(x, pred_y_a, a, propensity_inputs):
     pred_pos = pred_y_a > THRES
-    mdl_pred_diff = np.minimum(1, np.maximum(0, propensity_inputs[:,:1] + 0.5))
+    mdl_pred_diff = np.minimum(1, np.maximum(0, propensity_inputs[:, :1] + 0.5))
     return np.concatenate(
         [
             (x[:, :1] < 0) * pred_pos,
@@ -145,7 +146,7 @@ def main():
         mdl = pickle.load(f)
 
     expected_vals = pd.Series({"ppv": 0.7})
-    alpha_spending_func = lambda x: min(1, args.alpha/args.num_iters * x)
+    alpha_spending_func = lambda x: min(1, args.alpha / args.num_iters * x)
 
     # Score monitoring
     # TODO: this is a one-sided score monitor
@@ -166,7 +167,7 @@ def main():
     logging.info(
         "score_cusum fired? %s", score_cusum.is_fired_alarm(score_cusum_res_df)
     )
-    
+
     # WCUSUM with subgroups, no intervention, oracle propensity model
     np.random.seed(seed)
     wcusum_subg = wCUSUM(
@@ -215,8 +216,6 @@ def main():
     )
     wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("wcusum fired? %s", wcusum.is_fired_alarm(wcusum_res_df))
-    
-    
 
     # WCUSUM with Intervention
     np.random.seed(seed)
@@ -248,7 +247,7 @@ def main():
     res_df.to_csv(args.out_file, index=False)
 
     plt.clf()
-    plt.figure(figsize=(10,6))
+    plt.figure(figsize=(10, 6))
     sns.lineplot(data=res_df, x="actual_iter", y="value", hue="label", style="variable")
     plt.legend()
     plt.savefig(args.plot_file)

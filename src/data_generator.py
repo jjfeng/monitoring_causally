@@ -7,7 +7,15 @@ class DataGenerator:
     scale = 2
 
     def __init__(
-        self, source_beta: np.ndarray, target_beta: np.ndarray, intercept, x_mean: np.ndarray, propensity_beta: np.ndarray=None, propensity_intercept=0, beta_shift_time:int=None, seed_offset: int = 0
+        self,
+        source_beta: np.ndarray,
+        target_beta: np.ndarray,
+        intercept,
+        x_mean: np.ndarray,
+        propensity_beta: np.ndarray = None,
+        propensity_intercept=0,
+        beta_shift_time: int = None,
+        seed_offset: int = 0,
     ):
         self.source_beta = source_beta
         self.target_beta = target_beta
@@ -20,15 +28,19 @@ class DataGenerator:
         self.propensity_intercept = propensity_intercept
         self.seed_offset = seed_offset
         self.curr_time = 0
-        
+
     def update_time(self, curr_time: int, set_seed: bool = False):
         self.curr_time = curr_time
         if set_seed:
             np.random.seed(curr_time + self.seed_offset)
-    
+
     @property
     def is_shifted(self):
-        return self.curr_time > self.beta_shift_time if self.beta_shift_time is not None else False
+        return (
+            self.curr_time > self.beta_shift_time
+            if self.beta_shift_time is not None
+            else False
+        )
 
     def _get_prob(self, X, A):
         a_x_xa = np.concatenate([A[:, np.newaxis], X, A[:, np.newaxis] * X], axis=1)
@@ -36,19 +48,21 @@ class DataGenerator:
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         return 1 / (1 + np.exp(-logit))
 
-    def _get_propensity_inputs(self, X, mdl = None):
+    def _get_propensity_inputs(self, X, mdl=None):
         if mdl is not None:
             mdl_pred_prob_a0 = mdl.predict_proba(
-                np.concatenate([X, np.zeros((X.shape[0], 1))], axis=1))[:,1:]
+                np.concatenate([X, np.zeros((X.shape[0], 1))], axis=1)
+            )[:, 1:]
             mdl_pred_prob_a1 = mdl.predict_proba(
-                np.concatenate([X, np.ones((X.shape[0], 1))], axis=1))[:,1:]
+                np.concatenate([X, np.ones((X.shape[0], 1))], axis=1)
+            )[:, 1:]
             mdl_pred_diff = mdl_pred_prob_a1 - mdl_pred_prob_a0
         else:
             mdl_pred_diff = np.zeros((X.shape[0], 1))
         X_aug = np.concatenate([mdl_pred_diff, X], axis=1)
         return X_aug
 
-    def _get_propensity(self, X, mdl = None):
+    def _get_propensity(self, X, mdl=None):
         if self.propensity_beta is None:
             return np.ones(X.shape[0]) * 0.5
         else:
@@ -60,9 +74,16 @@ class DataGenerator:
             propensity = 1 / (1 + np.exp(-logit))
             if mdl is not None and X_aug.shape[0] > 100:
                 print(X_aug)
-                mdl_pred = mdl.predict_proba(np.concatenate([X, np.ones((X.shape[0], 1))], axis=1))[:,1]
+                mdl_pred = mdl.predict_proba(
+                    np.concatenate([X, np.ones((X.shape[0], 1))], axis=1)
+                )[:, 1]
                 propensity_pos = propensity[mdl_pred > 0.5]
-                print("propensity", np.sqrt(np.var(propensity_pos)), np.min(propensity_pos), np.max(propensity_pos))
+                print(
+                    "propensity",
+                    np.sqrt(np.var(propensity_pos)),
+                    np.min(propensity_pos),
+                    np.max(propensity_pos),
+                )
             return propensity
 
     def _generate_X(self, num_obs):
@@ -76,7 +97,8 @@ class DataGenerator:
         """
         return np.maximum(
             0,
-            np.random.normal(scale=self.scale, size=(num_obs, self.num_p)) + self.x_mean
+            np.random.normal(scale=self.scale, size=(num_obs, self.num_p))
+            + self.x_mean,
         )
 
     def _generate_Y(self, X, A):
@@ -89,7 +111,7 @@ class DataGenerator:
         A = np.random.binomial(1, treatments.flatten(), size=treatments.size)
         return A
 
-    def generate(self, num_obs, mdl = None):
+    def generate(self, num_obs, mdl=None):
         X = self._generate_X(num_obs)
         A = self._generate_A(X, mdl)
         y = self._generate_Y(X, A)

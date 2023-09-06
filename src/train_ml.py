@@ -84,24 +84,40 @@ def parse_args():
         default="_output/plotJOB.png",
     )
     args = parser.parse_args()
-    args.train_dataset_file = args.train_dataset_template.replace("JOB", str(args.job_idx))
+    args.train_dataset_file = args.train_dataset_template.replace(
+        "JOB", str(args.job_idx)
+    )
     args.log_file = args.log_file_template.replace("JOB", str(args.job_idx))
     args.mdl_file = args.mdl_file_template.replace("JOB", str(args.job_idx))
-    args.plot_source_file = args.plot_source_file_template.replace("JOB", str(args.job_idx))
-    args.plot_target_file = args.plot_target_file_template.replace("JOB", str(args.job_idx))
+    args.plot_source_file = args.plot_source_file_template.replace(
+        "JOB", str(args.job_idx)
+    )
+    args.plot_target_file = args.plot_target_file_template.replace(
+        "JOB", str(args.job_idx)
+    )
     return args
+
 
 def do_evaluate_model(mdl, testX, testY, plot_file: str, prefix: str):
     pred_prob = mdl.predict_proba(testX)[:, 1]
     conf_matrix = confusion_matrix(testY, pred_prob > 0.5)
-    logging.info("ppv %s %f", prefix, conf_matrix[1, 1] / (conf_matrix[1, 1] + conf_matrix[0, 1]))
-    logging.info("npv %s %f", prefix, conf_matrix[0, 0] / (conf_matrix[0, 0] + conf_matrix[1, 0]))
-    print("ppv %s %f", prefix, conf_matrix[1, 1] / (conf_matrix[1, 1] + conf_matrix[0, 1]))
-    print("npv %s %f", prefix, conf_matrix[0, 0] / (conf_matrix[0, 0] + conf_matrix[1, 0]))
+    logging.info(
+        "ppv %s %f", prefix, conf_matrix[1, 1] / (conf_matrix[1, 1] + conf_matrix[0, 1])
+    )
+    logging.info(
+        "npv %s %f", prefix, conf_matrix[0, 0] / (conf_matrix[0, 0] + conf_matrix[1, 0])
+    )
+    print(
+        "ppv %s %f", prefix, conf_matrix[1, 1] / (conf_matrix[1, 1] + conf_matrix[0, 1])
+    )
+    print(
+        "npv %s %f", prefix, conf_matrix[0, 0] / (conf_matrix[0, 0] + conf_matrix[1, 0])
+    )
 
     RocCurveDisplay.from_estimator(mdl, testX, testY)
     plt.savefig(plot_file)
     print(plot_file)
+
 
 def main():
     args = parse_args()
@@ -116,7 +132,7 @@ def main():
     trainX, testX, trainY, testY = train_test_split(
         X.to_numpy(), y, test_size=args.train_frac
     )
-    
+
     with open(args.param_dict_file, "r") as f:
         full_param_dict = json.load(f)
         param_dict = full_param_dict[args.model_type]
@@ -169,7 +185,9 @@ def main():
         pickle.dump(mdl, f)
 
     # Evaluate the model on source data
-    do_evaluate_model(mdl, testX, testY, plot_file=args.plot_source_file, prefix="source")
+    do_evaluate_model(
+        mdl, testX, testY, plot_file=args.plot_source_file, prefix="source"
+    )
 
     # Evaluate the model on biased target data
     with open(args.data_gen_file, "rb") as f:
@@ -178,17 +196,22 @@ def main():
     print(data_gen.propensity_beta)
     target_x, target_y, target_a = data_gen.generate(10000, mdl)
     print("target_a", target_a.mean())
-    target_testX = np.concatenate([target_x, target_a.reshape((-1,1))], axis=1)
-    do_evaluate_model(mdl, target_testX, target_y, plot_file=args.plot_target_file, prefix="target")
+    target_testX = np.concatenate([target_x, target_a.reshape((-1, 1))], axis=1)
+    do_evaluate_model(
+        mdl, target_testX, target_y, plot_file=args.plot_target_file, prefix="target"
+    )
 
     # Evaluate the model on unbiased target data
     data_gen.update_time(1000)
     data_gen.propensity_beta = None
     target_x, target_y, target_a = data_gen.generate(10000)
     print("target_a", target_a.mean())
-    target_testX = np.concatenate([target_x, target_a.reshape((-1,1))], axis=1)
-    do_evaluate_model(mdl, target_testX, target_y, plot_file=args.plot_target_file, prefix="target")
-    1/0
+    target_testX = np.concatenate([target_x, target_a.reshape((-1, 1))], axis=1)
+    do_evaluate_model(
+        mdl, target_testX, target_y, plot_file=args.plot_target_file, prefix="target"
+    )
+    1 / 0
+
 
 if __name__ == "__main__":
     main()

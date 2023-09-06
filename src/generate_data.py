@@ -30,9 +30,15 @@ def parse_args():
     )
     parser.add_argument("--x-mean", type=str, help="x mean")
     parser.add_argument("--intercept", type=float, help="intercept")
-    parser.add_argument("--source-beta", type=str, help="comma separated list of coefficients")
-    parser.add_argument("--target-beta", type=str, help="comma separated list of coefficients")
-    parser.add_argument("--propensity-beta", type=str, help="comma separated list of coefficients")
+    parser.add_argument(
+        "--source-beta", type=str, help="comma separated list of coefficients"
+    )
+    parser.add_argument(
+        "--target-beta", type=str, help="comma separated list of coefficients"
+    )
+    parser.add_argument(
+        "--propensity-beta", type=str, help="comma separated list of coefficients"
+    )
     parser.add_argument(
         "--propensity-intercept", type=float, help="propensity intercept"
     )
@@ -67,9 +73,14 @@ def parse_args():
     args.propensity_beta = np.array(list(map(float, args.propensity_beta.split(","))))
     args.x_mean = np.array(list(map(float, args.x_mean.split(","))))
     args.log_file = args.log_file_template.replace("JOB", str(args.job_idx))
-    args.out_source_file = args.out_source_file_template.replace("JOB", str(args.job_idx))
-    args.out_target_file = args.out_target_file_template.replace("JOB", str(args.job_idx))
+    args.out_source_file = args.out_source_file_template.replace(
+        "JOB", str(args.job_idx)
+    )
+    args.out_target_file = args.out_target_file_template.replace(
+        "JOB", str(args.job_idx)
+    )
     return args
+
 
 def output_data(dg, args, out_file):
     X, y, A = dg.generate(args.num_obs)
@@ -78,6 +89,7 @@ def output_data(dg, args, out_file):
     df["y"] = y
     print("MEAN OUTCOME rate", df.y.mean())
     df.to_csv(out_file, index=False)
+
 
 def main():
     args = parse_args()
@@ -88,7 +100,15 @@ def main():
     logging.info(args)
 
     # TODO: vary the type of data being returned based on data type string
-    dg = DataGenerator(source_beta=args.source_beta, target_beta=args.target_beta, intercept=args.intercept, x_mean=args.x_mean, propensity_beta=args.propensity_beta, propensity_intercept=args.propensity_intercept, beta_shift_time=1)
+    dg = DataGenerator(
+        source_beta=args.source_beta,
+        target_beta=args.target_beta,
+        intercept=args.intercept,
+        x_mean=args.x_mean,
+        propensity_beta=args.propensity_beta,
+        propensity_intercept=args.propensity_intercept,
+        beta_shift_time=1,
+    )
     output_data(dg, args, args.out_source_file)
 
     if args.out_data_gen_file:
@@ -97,6 +117,7 @@ def main():
 
     dg.update_time(2)
     output_data(dg, args, args.out_target_file)
+
 
 if __name__ == "__main__":
     main()
