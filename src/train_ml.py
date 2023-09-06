@@ -172,7 +172,7 @@ def main():
     # Evaluate the model on source data
     target_testX, target_testY = read_csv(args.test_dataset_file, read_A=False)
     do_evaluate_model(mdl, testX, testY, plot_file=args.plot_source_file, prefix="source")
-    do_evaluate_model(mdl, target_testX, target_testY, plot_file=args.plot_target_file, prefix="target")
+    do_evaluate_model(mdl, target_testX.to_numpy(), target_testY.to_numpy(), plot_file=args.plot_target_file, prefix="target")
 
 
 

@@ -22,8 +22,7 @@ ALPHA = 0.1
 PROPENSITY_BETA = '-2,0,0'
 SOURCE_BETA = '0.5,0,0.5,0.5,0'
 TARGET_BETA = '0,0,0,1,0.2'
-X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
-X_TARGET_MEAN = ",".join(["0"] * NUM_VAR)
+X_SOURCE_MEAN = ",".join(["2"] * NUM_VAR)
 
 @nest.add_target_with_env(localenv)
 def make_train_data(env, outdir, c):

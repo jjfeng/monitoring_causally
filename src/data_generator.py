@@ -33,7 +33,7 @@ class DataGenerator:
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         return 1 / (1 + np.exp(-logit))
 
-    def _get_propensity(self, X, mdl = None):
+    def _get_propensity_inputs(self, X, mdl = None):
         if mdl is not None:
             mdl_pred_prob_a0 = mdl.predict_proba(
                 np.concatenate([X, np.zeros((X.shape[0], 1))], axis=1))[:,1:]
@@ -42,10 +42,14 @@ class DataGenerator:
             mdl_pred_diff = mdl_pred_prob_a1 - mdl_pred_prob_a0
         else:
             mdl_pred_diff = np.zeros((X.shape[0], 1))
+        X_aug = np.concatenate([mdl_pred_diff, X], axis=1)
+        return X_aug
+
+    def _get_propensity(self, X, mdl = None):
         if self.propensity_beta is None:
             return np.ones(X.shape[0]) * 0.5
         else:
-            X_aug = np.concatenate([mdl_pred_diff, X], axis=1)
+            X_aug = self._get_propensity_inputs(X, mdl)
             logit = (
                 np.matmul(X_aug, self.propensity_beta.reshape((-1, 1)))
                 + self.propensity_intercept
@@ -53,7 +57,16 @@ class DataGenerator:
             return 1 / (1 + np.exp(-logit))
 
     def _generate_X(self, num_obs):
-        return (
+        """Generate X but only positive covariates
+
+        Args:
+            num_obs (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        return np.maximum(
+            0,
             np.random.normal(scale=self.scale, size=(num_obs, self.num_p)) + self.x_mean
         )
 

@@ -53,14 +53,12 @@ class CUSUM:
         boot_cusums = np.max(np.max(self.boot_cumsums, axis=1), axis=1)
         
         quantile = self.n_bootstrap * (1 - self.alpha_spending_func(eff_count))/ self.boot_cumsums.shape[0]
-        print("quantile", quantile)
         if quantile < 1:
             thres = np.quantile(
                 boot_cusums,
                 q=quantile,
             )
             boot_keep_mask = boot_cusums <= thres
-            print("boot_keep_mask", boot_keep_mask.sum())
             self.boot_cumsums = self.boot_cumsums[boot_keep_mask]
         else:
             logging.info("alert: quantile %f", quantile)
@@ -328,13 +326,15 @@ class CUSUM_score(CUSUM):
             data_gen.update_time(i)
             print("iter", i)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
+            propensity_inputs = data_gen._get_propensity_inputs(x, self.mdl)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:, 1].reshape((1,-1,1))
-            h = self.subgroup_func(x, pred_y_a.reshape((-1,1)))
-
+            h = self.subgroup_func(x, pred_y_a.reshape((-1,1)), propensity_inputs)
+            assert np.all(h >= 0)
+            
             iter_score, _ = self._get_iter_stat(y.reshape((1,-1,1)), mdl_pred=pred_y_a, h=h[np.newaxis,:,:])
- 
+            
             score_cumsums = (
                 np.concatenate([score_cumsums + iter_score, iter_score])
                 if score_cumsums is not None

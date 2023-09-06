@@ -110,6 +110,22 @@ def subgroup_func(x, pred_y_a):
         axis=1,
     )
 
+def score_subgroup_func(x, pred_y_a, propensity_inputs):
+    pred_pos = pred_y_a > THRES
+    mdl_pred_diff = propensity_inputs[:,:1] + 1
+    print("mdl_pred_diff", mdl_pred_diff)
+    return np.concatenate(
+        [
+            (x[:, :1] < 0) * mdl_pred_diff * pred_pos,
+            (x[:, :1] > 0) * mdl_pred_diff * pred_pos,
+            (x[:, 1:2] < 0) * mdl_pred_diff * pred_pos,
+            (x[:, 1:2] > 0) * mdl_pred_diff * pred_pos,
+            mdl_pred_diff * pred_pos,
+            # np.logical_not(pred_pos)
+        ],
+        axis=1,
+    )
+
 
 def main():
     args = parse_args()
@@ -126,6 +142,26 @@ def main():
 
     expected_vals = pd.Series({"ppv": 0.9})
     alpha_spending_func = lambda x: min(1, args.alpha/args.num_iters * x)
+
+    # Score monitoring
+    # TODO: this is a one-sided score monitor
+    np.random.seed(seed)
+    score_cusum = CUSUM_score(
+        mdl,
+        threshold=THRES,
+        expected_vals=expected_vals,
+        batch_size=args.batch_size,
+        alpha_spending_func=alpha_spending_func,
+        subgroup_func=score_subgroup_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    score_cusum_res_df = score_cusum.do_monitor(
+        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
+    )
+    logging.info(
+        "score_cusum fired? %s", score_cusum.is_fired_alarm(score_cusum_res_df)
+    )
     
     # WCUSUM with subgroups, no intervention, oracle propensity model
     np.random.seed(seed)
@@ -160,26 +196,6 @@ def main():
     )
     cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("cusum fired? %s", cusum.is_fired_alarm(cusum_res_df))
-    
-    # Score monitoring
-    # TODO: this is a one-sided score monitor
-    np.random.seed(seed)
-    score_cusum = CUSUM_score(
-        mdl,
-        threshold=THRES,
-        expected_vals=expected_vals,
-        batch_size=args.batch_size,
-        alpha_spending_func=alpha_spending_func,
-        subgroup_func=subgroup_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-    )
-    score_cusum_res_df = score_cusum.do_monitor(
-        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
-    )
-    logging.info(
-        "score_cusum fired? %s", score_cusum.is_fired_alarm(score_cusum_res_df)
-    )
 
     # # WCUSUM avg, no intervention, oracle propensity model
     np.random.seed(seed)
