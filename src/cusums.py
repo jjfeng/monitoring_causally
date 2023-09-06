@@ -239,7 +239,6 @@ class wCUSUM(CUSUM):
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:,1].reshape((1,-1,1))
-            print("pred_y_a", pred_y_a.shape)
             pred_class = (pred_y_a > self.threshold).astype(int)
             oracle_propensity = data_gen._get_propensity(x).reshape((1,-1,1))
             oracle_weight = 1 / oracle_propensity
@@ -254,15 +253,12 @@ class wCUSUM(CUSUM):
                 if ppv_cumsums is not None
                 else iter_ppv_stat
             )
-            print("iter_ppv_stat", iter_ppv_stat.shape, ppv_cumsums.shape)
-            print("h", h.shape)
             h_sum = h.sum(axis=0, keepdims=True).reshape((1,1,-1))
             subg_counts = (
                 np.concatenate([subg_counts + h_sum, h_sum])
                 if subg_counts is not None
                 else h_sum
             )
-            print("subg_counts", subg_counts)
             ppv_cusums.append(np.max(ppv_cumsums[subg_counts > 0]))
             logging.info("PPV estimate weighted %s", ppv_cumsums[0,0]/(i + 1))
 
@@ -337,7 +333,6 @@ class CUSUM_score(CUSUM):
             )[:, 1].reshape((1,-1,1))
 
             iter_score, _ = self._get_iter_stat(y.reshape((1,-1,1)), mdl_pred=pred_y_a, h=h[np.newaxis,:,:])
-            print("iterscore", iter_score.shape)
             score_cumsums = (
                 np.concatenate([score_cumsums + iter_score, iter_score])
                 if score_cumsums is not None
