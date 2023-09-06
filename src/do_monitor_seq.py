@@ -14,6 +14,9 @@ from common import get_n_jobs, read_csv, to_safe_prob
 
 from cusums import CUSUM_naive, wCUSUM, CUSUM_score
 
+THRES = 0.5
+
+# TODO: unify data generation so they do not differ
 
 def parse_args():
     parser = argparse.ArgumentParser(description="monittor a ML algorithm")
@@ -92,13 +95,16 @@ def parse_args():
     return args
 
 
-def subgroup_func(x):
+
+def subgroup_func(x, pred_y_a):
     return np.concatenate(
         [
             x[:, :1] < 0,
             x[:, :1] > 0,
             x[:, 1:2] < 0,
             x[:, 1:2] > 0,
+            pred_y_a > THRES,
+            pred_y_a < THRES,
         ],
         axis=1,
     )
@@ -117,9 +123,28 @@ def main():
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
 
-    expected_vals = pd.Series({"ppv": 1})
+    expected_vals = pd.Series({"ppv": 0.9})
     alpha_spending_func = lambda x: min(1, args.alpha/args.num_iters * x)
-    THRES = 0.5
+    
+    # WCUSUM with subgroups, no intervention, oracle propensity model
+    np.random.seed(seed)
+    wcusum_subg = wCUSUM(
+        mdl,
+        threshold=THRES,
+        expected_vals=expected_vals,
+        batch_size=args.batch_size,
+        propensity_beta=None,
+        alpha_spending_func=alpha_spending_func,
+        subgroup_func=subgroup_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    wcusum_subg_res_df = wcusum_subg.do_monitor(
+        num_iters=args.num_iters, data_gen=data_gen
+    )
+    logging.info(
+        "wcusum_subg fired? %s", wcusum_subg.is_fired_alarm(wcusum_subg_res_df)
+    )
 
     # Naive CUSUM
     np.random.seed(seed)
@@ -134,8 +159,9 @@ def main():
     )
     cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("cusum fired? %s", cusum.is_fired_alarm(cusum_res_df))
-
+    
     # Score monitoring
+    # TODO: this is a one-sided score monitor
     np.random.seed(seed)
     score_cusum = CUSUM_score(
         mdl,
@@ -168,26 +194,8 @@ def main():
     )
     wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("wcusum fired? %s", wcusum.is_fired_alarm(wcusum_res_df))
-
-    # # WCUSUM with subgroups, no intervention, oracle propensity model
-    np.random.seed(seed)
-    wcusum_subg = wCUSUM(
-        mdl,
-        threshold=THRES,
-        expected_vals=expected_vals,
-        batch_size=args.batch_size,
-        propensity_beta=None,
-        alpha_spending_func=alpha_spending_func,
-        subgroup_func=subgroup_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-    )
-    wcusum_subg_res_df = wcusum_subg.do_monitor(
-        num_iters=args.num_iters, data_gen=data_gen
-    )
-    logging.info(
-        "wcusum_subg fired? %s", wcusum_subg.is_fired_alarm(wcusum_subg_res_df)
-    )
+    
+    
 
     # WCUSUM with Intervention
     np.random.seed(seed)

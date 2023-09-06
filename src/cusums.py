@@ -35,18 +35,16 @@ class CUSUM:
 
         return is_fired, fire_time
 
-    def do_bootstrap_update(self, pred_y_a: np.ndarray, eff_count: int, **kwargs):
-        print("boodstrap", pred_y_a.shape)
+    def do_bootstrap_update(self, pred_y_a: np.ndarray, eff_count: int, alt_overest: bool=False, **kwargs):
+        sign = -1 if alt_overest else 1
         boot_ys = np.random.binomial(
             n=1,
-            p=pred_y_a.reshape((1,-1)) - self.delta,
+            p=pred_y_a.reshape((1,-1)) + sign * self.delta,
             size=(self.boot_cumsums.shape[0], pred_y_a.size)
             if self.boot_cumsums is not None
             else (self.n_bootstrap, pred_y_a.size),
         )
-        print("BOOTY", boot_ys.shape)
         boot_iter_stat, _ = self._get_iter_stat(boot_ys[:,:, np.newaxis], **kwargs)
-        print("boot_iter_stat", boot_iter_stat.shape)
         self.boot_cumsums = (
             np.concatenate([self.boot_cumsums + boot_iter_stat, boot_iter_stat], axis=1)
             if self.boot_cumsums is not None
@@ -54,14 +52,19 @@ class CUSUM:
         )
         boot_cusums = np.max(np.max(self.boot_cumsums, axis=1), axis=1)
         
-        thres = np.quantile(
-            boot_cusums,
-            q=self.n_bootstrap
-            * (1 - self.alpha_spending_func(eff_count))
-            / self.boot_cumsums.shape[0],
-        )
-        boot_keep_mask = boot_cusums <= thres
-        self.boot_cumsums = self.boot_cumsums[boot_keep_mask]
+        quantile = self.n_bootstrap * (1 - self.alpha_spending_func(eff_count))/ self.boot_cumsums.shape[0]
+        print("quantile", quantile)
+        if quantile < 1:
+            thres = np.quantile(
+                boot_cusums,
+                q=quantile,
+            )
+            boot_keep_mask = boot_cusums <= thres
+            print("boot_keep_mask", boot_keep_mask.sum())
+            self.boot_cumsums = self.boot_cumsums[boot_keep_mask]
+        else:
+            logging.info("alert: quantile %f", quantile)
+            thres = np.max(boot_cusums)
         return thres
 
 
@@ -90,7 +93,6 @@ class CUSUM_naive(CUSUM):
 
     def _get_iter_stat(self, y, **kwargs):
         pred_class = kwargs["pred_class"]
-        print(pred_class.shape, y.shape)
         mask = pred_class == 1
         iter_stats = (self.expected_vals["ppv"] - (y == pred_class)) * mask
         return np.sum(iter_stats, axis=1, keepdims=True), mask.sum()
@@ -111,28 +113,26 @@ class CUSUM_naive(CUSUM):
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:, 1]
             pred_class = (pred_y_a > self.threshold).astype(int).reshape((1,-1))
-
             actual_iters.append(i)
+
             iter_ppv_stat, ppv_incr = self._get_iter_stat(y[np.newaxis, :], pred_class=pred_class)
             ppv_count += ppv_incr
-            print("iter_ppv_stat", iter_ppv_stat.shape)
             ppv_cumsums = (
                 np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat])
                 if ppv_cumsums is not None
                 else iter_ppv_stat
             )
             ppv_cusums.append(np.max(ppv_cumsums))
-            logging.info("PPV estimate naive %f", ppv_cumsums[0]/(i + 1))
+            logging.info("PPV estimate naive %f", ppv_cumsums[0]/(i + 1)/self.batch_size)
 
             thres = self.do_bootstrap_update(
-                pred_y_a, ppv_count, pred_class=pred_class[:,:,np.newaxis]
+                pred_y_a, ppv_count, pred_class=pred_class[:,:,np.newaxis], alt_overest=True
             )
             dcl.append(thres)
         
             fired = ppv_cusums[-1] > dcl[-1]
             if fired and self.halt_when_fired:
                 break
-
 
         ppv_cusum_df = pd.DataFrame(
             {
@@ -188,26 +188,24 @@ class wCUSUM(CUSUM):
         subg_weights = np.ones(1)
         if self.subgroup_func is not None:
             x, y, a = data_gen.generate(self.n_bootstrap, self.mdl)
-            h = self.subgroup_func(x)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:, 1].reshape((1,-1,1))
             pred_class = (pred_y_a > self.threshold).astype(int)
-            oracle_propensity = data_gen._get_propensity(x).reshape((1,-1,1))
+            h = self.subgroup_func(x, pred_y_a.reshape((-1,1)))
+            oracle_propensity = data_gen._get_propensity(x, mdl=self.mdl).reshape((1,-1,1))
             oracle_weight = 1 / oracle_propensity
 
             iter_ppv_stats = self._get_iter_stat(
                 y.reshape((1,-1,1)), pred_class=pred_class, oracle_weight=oracle_weight, h=h[np.newaxis, :, :], collate=False
             )[0]
-            print("iter_ppv_stats", iter_ppv_stats.shape)
             iter_ppv_stats = iter_ppv_stats[pred_class.flatten() == 1]
             subg_var_ests = np.var(iter_ppv_stats, axis=0)
-            print("subg_var_ests", subg_var_ests)
             subg_weights = 1 / np.sqrt(subg_var_ests)
+            subg_weights[np.isinf(subg_weights)] = 0
         return data_gen, subg_weights.reshape((1,1,-1))
 
     def _get_iter_stat(self, y, **kwargs):
-        print(y.shape, kwargs["pred_class"].shape, kwargs["h"].shape, self.subg_weights.shape)
         mask = kwargs["pred_class"] == 1
         iter_stats = (
             (self.expected_vals["ppv"] - (y == kwargs["pred_class"]))
@@ -215,7 +213,6 @@ class wCUSUM(CUSUM):
             * kwargs["h"]
             * self.subg_weights
         ) * mask
-        print("iter_stats", iter_stats.shape)
         if not kwargs['collate']:
             return iter_stats
         else:
@@ -235,18 +232,19 @@ class wCUSUM(CUSUM):
             data_gen.update_time(i)
             print("iter", i, len(ppv_cusums))
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
-            h = self.subgroup_func(x) if self.subgroup_func is not None else np.ones(1)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:,1].reshape((1,-1,1))
             pred_class = (pred_y_a > self.threshold).astype(int)
-            oracle_propensity = data_gen._get_propensity(x).reshape((1,-1,1))
+            h = self.subgroup_func(x, pred_y_a.reshape((-1,1))) if self.subgroup_func is not None else np.ones(1)
+            oracle_propensity = data_gen._get_propensity(x, mdl=self.mdl).reshape((1,-1,1))
             oracle_weight = 1 / oracle_propensity
-            print("weight", oracle_weight.shape, h.shape, self.subg_weights)
+            print("weight", oracle_weight, h.shape, self.subg_weights)
 
             iter_ppv_stat, ppv_incr = self._get_iter_stat(
                 y.reshape((1,-1,1)), pred_class=pred_class, oracle_weight=oracle_weight, h=h[np.newaxis,:], collate=True
             )
+            print("iter_ppv_stat", iter_ppv_stat)
             ppv_count += ppv_incr
             ppv_cumsums = (
                 np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat])
@@ -268,6 +266,7 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h,
+                alt_overest=True,
                 collate=True,
             )
             dcl.append(thres)
@@ -313,8 +312,7 @@ class CUSUM_score(CUSUM):
         self.halt_when_fired = halt_when_fired
 
     def _get_iter_stat(self, y, **kwargs):
-        print(y.shape, kwargs["mdl_pred"].shape, kwargs["h"].shape)
-        iter_stats = ((y - kwargs["mdl_pred"]) * kwargs["h"])
+        iter_stats = ((kwargs["mdl_pred"] - y) * kwargs["h"])
         return np.sum(iter_stats, axis=1, keepdims=True), None
 
     def do_monitor(self, num_iters: int, data_gen):
@@ -327,12 +325,13 @@ class CUSUM_score(CUSUM):
             data_gen.update_time(i)
             print("iter", i)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
-            h = self.subgroup_func(x)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:, 1].reshape((1,-1,1))
+            h = self.subgroup_func(x, pred_y_a.reshape((-1,1)))
 
             iter_score, _ = self._get_iter_stat(y.reshape((1,-1,1)), mdl_pred=pred_y_a, h=h[np.newaxis,:,:])
+ 
             score_cumsums = (
                 np.concatenate([score_cumsums + iter_score, iter_score])
                 if score_cumsums is not None
@@ -341,7 +340,7 @@ class CUSUM_score(CUSUM):
             score_cusums.append(np.max(score_cumsums))
 
             thres = self.do_bootstrap_update(
-                pred_y_a, eff_count=i + 1, h=h[np.newaxis,:,:], mdl_pred=pred_y_a
+                pred_y_a, eff_count=i + 1, alt_overest=True, h=h[np.newaxis,:,:], mdl_pred=pred_y_a
             )
             dcl.append(thres)
 
