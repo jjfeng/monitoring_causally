@@ -104,7 +104,7 @@ class CUSUM_naive(CUSUM):
         dcl = []
         actual_iters = []
         for i in range(num_iters):
-            data_gen.update_time(i)
+            data_gen.update_time(i, set_seed=True)
             print("iter", i, ppv_count)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a = self.mdl.predict_proba(
@@ -216,7 +216,7 @@ class wCUSUM(CUSUM):
         else:
             return np.sum(iter_stats, axis=1, keepdims=True), mask.sum()
 
-    def do_monitor(self, num_iters: int, data_gen):
+    def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         print("Do %s monitor" % self.label)
         data_gen, self.subg_weights = self._setup(data_gen)
         
@@ -227,7 +227,7 @@ class wCUSUM(CUSUM):
         ppv_cusums = []
         dcl = []
         for i in range(num_iters):
-            data_gen.update_time(i)
+            data_gen.update_time(i, set_seed=True)
             print("iter", i, len(ppv_cusums))
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a = self.mdl.predict_proba(
@@ -237,12 +237,11 @@ class wCUSUM(CUSUM):
             h = self.subgroup_func(x, pred_y_a.reshape((-1,1))) if self.subgroup_func is not None else np.ones(1)
             oracle_propensity = data_gen._get_propensity(x, mdl=self.mdl).reshape((1,-1,1))
             oracle_weight = 1 / oracle_propensity
-            print("weight", oracle_weight, h.shape, self.subg_weights)
+            # print("weight", oracle_weight, h.shape, self.subg_weights)
 
             iter_ppv_stat, ppv_incr = self._get_iter_stat(
                 y.reshape((1,-1,1)), pred_class=pred_class, oracle_weight=oracle_weight, h=h[np.newaxis,:], collate=True
             )
-            print("iter_ppv_stat", iter_ppv_stat)
             ppv_count += ppv_incr
             ppv_cumsums = (
                 np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat])
@@ -316,14 +315,14 @@ class CUSUM_score(CUSUM):
         iter_stats = ((kwargs["mdl_pred"] - y) * kwargs["h"])
         return np.sum(iter_stats, axis=1, keepdims=True), None
 
-    def do_monitor(self, num_iters: int, data_gen):
+    def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         print("Do %s monitor" % self.label)
         self.boot_cumsums = None
         score_cumsums = None
         score_cusums = []
         dcl = []
         for i in range(num_iters):
-            data_gen.update_time(i)
+            data_gen.update_time(i, set_seed=True)
             print("iter", i)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             propensity_inputs = data_gen._get_propensity_inputs(x, self.mdl)

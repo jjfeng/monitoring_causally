@@ -7,7 +7,7 @@ class DataGenerator:
     scale = 2
 
     def __init__(
-        self, source_beta: np.ndarray, target_beta: np.ndarray, intercept, x_mean: np.ndarray, propensity_beta: np.ndarray=None, propensity_intercept=0, beta_shift_time:int=None
+        self, source_beta: np.ndarray, target_beta: np.ndarray, intercept, x_mean: np.ndarray, propensity_beta: np.ndarray=None, propensity_intercept=0, beta_shift_time:int=None, seed_offset: int = 0
     ):
         self.source_beta = source_beta
         self.target_beta = target_beta
@@ -18,10 +18,13 @@ class DataGenerator:
         assert x_mean.size == self.num_p
         self.propensity_beta = propensity_beta
         self.propensity_intercept = propensity_intercept
+        self.seed_offset = seed_offset
         self.curr_time = 0
         
-    def update_time(self, curr_time: int):
+    def update_time(self, curr_time: int, set_seed: bool = False):
         self.curr_time = curr_time
+        if set_seed:
+            np.random.seed(curr_time + self.seed_offset)
     
     @property
     def is_shifted(self):
@@ -54,7 +57,8 @@ class DataGenerator:
                 np.matmul(X_aug, self.propensity_beta.reshape((-1, 1)))
                 + self.propensity_intercept
             )
-            return 1 / (1 + np.exp(-logit))
+            propensity = 1 / (1 + np.exp(-logit))
+            return propensity
 
     def _generate_X(self, num_obs):
         """Generate X but only positive covariates

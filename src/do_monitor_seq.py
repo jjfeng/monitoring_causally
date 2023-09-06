@@ -137,6 +137,7 @@ def main():
 
     with open(args.data_gen_file, "rb") as f:
         data_gen = pickle.load(f)
+        data_gen.seed_offset = seed
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
 
@@ -244,6 +245,7 @@ def main():
     res_df.to_csv(args.out_file, index=False)
 
     plt.clf()
+    plt.figure(figsize=(10,6))
     sns.lineplot(data=res_df, x="actual_iter", y="value", hue="label", style="variable")
     plt.legend()
     plt.savefig(args.plot_file)

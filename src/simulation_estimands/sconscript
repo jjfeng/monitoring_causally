@@ -19,9 +19,10 @@ BATCH_SIZE = 2
 BETA_SHIFT_TIME = 2
 DELTA = 0.01
 ALPHA = 0.1
-PROPENSITY_BETA = '-2,0,0'
-SOURCE_BETA = '0.5,0,0.5,0.5,0'
-TARGET_BETA = '0,0,0,1,0.2'
+PROPENSITY_BETA = '-4,0,0'
+INTERCEPT = -2
+SOURCE_BETA = '0,0,0.5,0.5,0.5'
+TARGET_BETA = '0,0,0.5,0.5,0'
 X_SOURCE_MEAN = ",".join(["2"] * NUM_VAR)
 
 @nest.add_target_with_env(localenv)
@@ -42,6 +43,7 @@ def make_train_data(env, outdir, c):
         0,
         '--x-mean',
         X_SOURCE_MEAN,
+        '--intercept=%.2f' % INTERCEPT,
         '--source-beta',
         SOURCE_BETA,
         '--target-beta',
@@ -117,6 +119,7 @@ def make_prechange_environment(env, outdir, c):
         "--propensity-beta=%s" % PROPENSITY_BETA,
         '--beta-shift-time',
         BETA_SHIFT_TIME,
+        '--intercept=%.2f' % INTERCEPT,
         '--target-beta',
         TARGET_BETA,
         '--source-beta',
@@ -149,7 +152,6 @@ def monitor(env, outdir, c):
     targets = [
         join(outdir, 'log.txt'),
         join(outdir, 'res.csv'),
-        join(outdir, 'plot_cusum.png'),
     ]
 
     cmd = [
@@ -168,7 +170,6 @@ def monitor(env, outdir, c):
         c['seed'],
         '--log-file ${TARGETS[0]}',
         '--out-file ${TARGETS[1]}',
-        '--plot-file ${TARGETS[2]}',
     ]
     # cmd = [
     #     'python run_script.py',
@@ -187,6 +188,32 @@ def monitor(env, outdir, c):
             c['make_prechange_environment'][0],
             c['train_ml'][0],
         ],
+        ' '.join(map(str, cmd)))
+
+@nest.add_target_with_env(localenv)
+def plot_cusum(env, outdir, c):
+    targets = [
+        join(outdir, 'plot_cusum.png'),
+    ]
+
+    cmd = [
+        'python plot_cusum.py',
+        '--res ${SOURCES[1]}',
+        '--plot-file ${TARGETS[0]}',
+    ]
+    # cmd = [
+    #     'python run_script.py',
+    #     '--cluster',
+    #     localenv['cluster'],
+    #     '--target-template-file',
+    #     '${TARGETS[0]}',
+    #     '--num-jobs',
+    #     NUM_JOBS,
+    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+    # ]
+    return env.Command(
+        targets,
+        c['monitor'],
         ' '.join(map(str, cmd)))
 
 nest.pop('seed')

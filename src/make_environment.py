@@ -26,6 +26,7 @@ def parse_args():
     parser.add_argument(
         "--propensity-beta", type=str, help="comma separated list of coefficients"
     )
+    parser.add_argument("--intercept", type=float, help="intercept")
     parser.add_argument(
         "--source-beta", type=str, help="comma separated list of coefficients"
     )
@@ -65,7 +66,7 @@ def main():
         source_beta=args.source_beta,
         target_beta=args.target_beta,
         beta_shift_time=args.beta_shift_time,
-        intercept=0,
+        intercept=args.intercept,
         x_mean=args.x_mean,
         propensity_beta=args.propensity_beta,
     )
