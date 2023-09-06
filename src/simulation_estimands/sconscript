@@ -12,10 +12,11 @@ localenv = env.Clone()
 # Set up state
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
-NUM_ITERS = 200
+NUM_ITERS = 150
 NUM_SEEDS = 1
 NUM_VAR = 2
-BETA_SHIFT_TIME = 10
+BATCH_SIZE = 2
+BETA_SHIFT_TIME = 2
 DELTA = 0.01
 ALPHA = 0.1
 PROPENSITY_BETA = '-2,0,0'
@@ -160,6 +161,8 @@ def monitor(env, outdir, c):
         ALPHA,
         '--delta',
         DELTA,
+        '--batch-size',
+        BATCH_SIZE,
         '--num-iters',
         NUM_ITERS,
         '--seed-offset',

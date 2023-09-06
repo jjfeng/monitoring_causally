@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=10,
+        default=1,
         help="batch size for monitoring",
     )
     parser.add_argument(
@@ -117,7 +117,7 @@ def main():
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
 
-    expected_vals = pd.Series({"ppv": 0.9})
+    expected_vals = pd.Series({"ppv": 1})
     alpha_spending_func = lambda x: min(1, args.alpha/args.num_iters * x)
     THRES = 0.5
 
@@ -126,6 +126,7 @@ def main():
     cusum = CUSUM_naive(
         mdl,
         threshold=THRES,
+        batch_size=args.batch_size,
         expected_vals=expected_vals,
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
@@ -140,6 +141,7 @@ def main():
         mdl,
         threshold=THRES,
         expected_vals=expected_vals,
+        batch_size=args.batch_size,
         alpha_spending_func=alpha_spending_func,
         subgroup_func=subgroup_func,
         delta=args.delta,
@@ -157,6 +159,7 @@ def main():
     wcusum = wCUSUM(
         mdl,
         threshold=THRES,
+        batch_size=args.batch_size,
         expected_vals=expected_vals,
         propensity_beta=None,
         alpha_spending_func=alpha_spending_func,
@@ -172,6 +175,7 @@ def main():
         mdl,
         threshold=THRES,
         expected_vals=expected_vals,
+        batch_size=args.batch_size,
         propensity_beta=None,
         alpha_spending_func=alpha_spending_func,
         subgroup_func=subgroup_func,
@@ -190,6 +194,7 @@ def main():
     wcusum_int = wCUSUM(
         mdl,
         threshold=0.5,
+        batch_size=args.batch_size,
         expected_vals=expected_vals,
         propensity_beta=np.zeros(data_gen.propensity_beta.size),
         alpha_spending_func=alpha_spending_func,
