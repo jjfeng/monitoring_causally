@@ -105,6 +105,7 @@ def subgroup_func(x, pred_y_a):
             (x[:, 1:2] < 0) * pred_pos,
             (x[:, 1:2] > 0) * pred_pos,
             pred_pos,
+            # np.logical_not(pred_pos)
         ],
         axis=1,
     )

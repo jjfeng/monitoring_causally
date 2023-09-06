@@ -225,7 +225,7 @@ class wCUSUM(CUSUM):
         ppv_count = 0
         self.boot_cumsums = None
         ppv_cumsums = None
-        subg_counts = None
+        # subg_counts = None
         ppv_cusums = []
         dcl = []
         for i in range(num_iters):
@@ -251,13 +251,16 @@ class wCUSUM(CUSUM):
                 if ppv_cumsums is not None
                 else iter_ppv_stat
             )
-            h_sum = h.sum(axis=0, keepdims=True).reshape((1,1,-1))
-            subg_counts = (
-                np.concatenate([subg_counts + h_sum, h_sum])
-                if subg_counts is not None
-                else h_sum
-            )
-            ppv_cusums.append(np.max(ppv_cumsums[subg_counts > 0]))
+            # TODO: do we even need this section below?
+            # h_sum = h.sum(axis=0, keepdims=True).reshape((1,1,-1))
+            # subg_counts = (
+            #     np.concatenate([subg_counts + h_sum, h_sum])
+            #     if subg_counts is not None
+            #     else h_sum
+            # )
+            ppv_cusums.append(
+                np.max(ppv_cumsums) #[subg_counts > 0]) if subg_counts.sum() else 0
+                )
             logging.info("PPV estimate weighted %s", ppv_cumsums[0,0]/(i + 1))
 
             thres = self.do_bootstrap_update(
