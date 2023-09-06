@@ -13,7 +13,7 @@ class DataGenerator:
         intercept,
         x_mean: np.ndarray,
         propensity_beta: np.ndarray = None,
-        propensity_intercept=0,
+        propensity_intercept: float =0,
         beta_shift_time: int = None,
         seed_offset: int = 0,
     ):

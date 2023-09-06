@@ -27,7 +27,7 @@ def parse_args():
         "--propensity-beta", type=str, help="comma separated list of coefficients"
     )
     parser.add_argument(
-        "--propensity-intercept", type=float, help="propensity intercept"
+        "--propensity-intercept", type=float, default=0, help="propensity intercept"
     )
     parser.add_argument("--intercept", type=float, help="intercept")
     parser.add_argument(

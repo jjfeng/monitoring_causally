@@ -105,13 +105,13 @@ def main():
         target_beta=args.target_beta,
         intercept=args.intercept,
         x_mean=args.x_mean,
-        propensity_beta=args.propensity_beta,
-        propensity_intercept=args.propensity_intercept,
         beta_shift_time=1,
     )
     output_data(dg, args, args.out_source_file)
 
     if args.out_data_gen_file:
+        dg.propensity_beta = args.propensity_beta
+        dg.propensity_intercept = args.propensity_intercept
         with open(args.out_data_gen_file, "wb") as f:
             pickle.dump(dg, f)
 
