@@ -58,6 +58,11 @@ class DataGenerator:
                 + self.propensity_intercept
             )
             propensity = 1 / (1 + np.exp(-logit))
+            if mdl is not None and X_aug.shape[0] > 100:
+                print(X_aug)
+                mdl_pred = mdl.predict_proba(np.concatenate([X, np.ones((X.shape[0], 1))], axis=1))[:,1]
+                propensity_pos = propensity[mdl_pred > 0.5]
+                print("propensity", np.sqrt(np.var(propensity_pos)), np.min(propensity_pos), np.max(propensity_pos))
             return propensity
 
     def _generate_X(self, num_obs):

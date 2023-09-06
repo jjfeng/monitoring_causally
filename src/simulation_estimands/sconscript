@@ -15,21 +15,22 @@ nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 NUM_ITERS = 50
 NUM_SEEDS = 1
 NUM_VAR = 2
-BATCH_SIZE = 2
+BATCH_SIZE = 20
 BETA_SHIFT_TIME = 2
 DELTA = 0.01
 ALPHA = 0.1
-PROPENSITY_BETA = '-4,0,0'
-INTERCEPT = -2
-SOURCE_BETA = '0,0,0.5,0.5,0.5'
-TARGET_BETA = '0,0,0.5,0.5,0'
+PROPENSITY_BETA = '3,0,0'
+PROPENSITY_INTERCEPT = -2
+INTERCEPT = -3
+SOURCE_BETA = '0,0,0,2,2'
+TARGET_BETA = '0,0,0,1.5,2'
 X_SOURCE_MEAN = ",".join(["2"] * NUM_VAR)
 
 @nest.add_target_with_env(localenv)
 def make_train_data(env, outdir, c):
     targets = [
         join(outdir, 'source_data.csv'),
-        join(outdir, 'target_data.csv'),
+        join(outdir, 'train_data_gen.pkl'),
     ]
 
     cmd = [
@@ -38,7 +39,7 @@ def make_train_data(env, outdir, c):
         '--data-type',
         'simple',
         '--num-obs',
-        500,
+        5000,
         '--seed-offset',
         0,
         '--x-mean',
@@ -48,8 +49,10 @@ def make_train_data(env, outdir, c):
         SOURCE_BETA,
         '--target-beta',
         TARGET_BETA,
+        "--propensity-beta=%s" % PROPENSITY_BETA,
+        '--propensity-intercept=%.2f' % PROPENSITY_INTERCEPT,
         '--out-source-file ${TARGETS[0]}',
-        '--out-target-file ${TARGETS[1]}',
+        '--out-data-gen ${TARGETS[1]}',
     ]
     # cmd = [
     #     'python run_script.py',
@@ -83,7 +86,7 @@ def train_ml(env, outdir, c):
         '--model',
         'RandomForestClassifier',
         '--train-data ${SOURCES[0]}',
-        '--test-data ${SOURCES[1]}',
+        '--data-gen ${SOURCES[1]}',
         '--mdl ${TARGETS[0]}',
         '--log ${TARGETS[1]}',
         '--plot-source ${TARGETS[2]}',

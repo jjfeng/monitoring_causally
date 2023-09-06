@@ -258,7 +258,7 @@ class wCUSUM(CUSUM):
             ppv_cusums.append(
                 np.max(ppv_cumsums) #[subg_counts > 0]) if subg_counts.sum() else 0
                 )
-            logging.info("PPV estimate weighted %s", ppv_cumsums[0,0]/(i + 1))
+            logging.info("PPV estimate weighted %s", ppv_cumsums[0,0]/self.batch_size/(i + 1))
 
             thres = self.do_bootstrap_update(
                 pred_y_a[0],
@@ -329,7 +329,7 @@ class CUSUM_score(CUSUM):
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:, 1].reshape((1,-1,1))
-            h = self.subgroup_func(x, pred_y_a.reshape((-1,1)), propensity_inputs)
+            h = self.subgroup_func(x, pred_y_a.reshape((-1,1)), a.reshape((-1,1)), propensity_inputs)
             assert np.all(h >= 0)
             
             iter_score, _ = self._get_iter_stat(y.reshape((1,-1,1)), mdl_pred=pred_y_a, h=h[np.newaxis,:,:])
@@ -340,6 +340,7 @@ class CUSUM_score(CUSUM):
                 else iter_score
             )
             score_cusums.append(np.max(score_cumsums))
+            logging.info("score estimate %s", score_cumsums[0]/self.batch_size/(i + 1))
 
             thres = self.do_bootstrap_update(
                 pred_y_a, eff_count=i + 1, alt_overest=True, h=h[np.newaxis,:,:], mdl_pred=pred_y_a

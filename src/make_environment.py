@@ -26,6 +26,9 @@ def parse_args():
     parser.add_argument(
         "--propensity-beta", type=str, help="comma separated list of coefficients"
     )
+    parser.add_argument(
+        "--propensity-intercept", type=float, help="propensity intercept"
+    )
     parser.add_argument("--intercept", type=float, help="intercept")
     parser.add_argument(
         "--source-beta", type=str, help="comma separated list of coefficients"
@@ -69,7 +72,9 @@ def main():
         intercept=args.intercept,
         x_mean=args.x_mean,
         propensity_beta=args.propensity_beta,
+        propensity_intercept=args.propensity_intercept,
     )
+    # This is just a sanity check
     X, y, A = dg.generate(10)
 
     with open(args.out_data_gen_file, "wb") as f:

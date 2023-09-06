@@ -32,6 +32,10 @@ def parse_args():
     parser.add_argument("--intercept", type=float, help="intercept")
     parser.add_argument("--source-beta", type=str, help="comma separated list of coefficients")
     parser.add_argument("--target-beta", type=str, help="comma separated list of coefficients")
+    parser.add_argument("--propensity-beta", type=str, help="comma separated list of coefficients")
+    parser.add_argument(
+        "--propensity-intercept", type=float, help="propensity intercept"
+    )
     parser.add_argument(
         "--num-obs",
         type=int,
@@ -60,6 +64,7 @@ def parse_args():
     args = parser.parse_args()
     args.source_beta = np.array(list(map(float, args.source_beta.split(","))))
     args.target_beta = np.array(list(map(float, args.target_beta.split(","))))
+    args.propensity_beta = np.array(list(map(float, args.propensity_beta.split(","))))
     args.x_mean = np.array(list(map(float, args.x_mean.split(","))))
     args.log_file = args.log_file_template.replace("JOB", str(args.job_idx))
     args.out_source_file = args.out_source_file_template.replace("JOB", str(args.job_idx))
@@ -71,7 +76,7 @@ def output_data(dg, args, out_file):
     df = pd.DataFrame(X)
     df["A"] = A
     df["y"] = y
-    print(df)
+    print("MEAN OUTCOME rate", df.y.mean())
     df.to_csv(out_file, index=False)
 
 def main():
@@ -83,7 +88,7 @@ def main():
     logging.info(args)
 
     # TODO: vary the type of data being returned based on data type string
-    dg = DataGenerator(source_beta=args.source_beta, target_beta=args.target_beta, intercept=args.intercept, x_mean=args.x_mean, beta_shift_time=1)
+    dg = DataGenerator(source_beta=args.source_beta, target_beta=args.target_beta, intercept=args.intercept, x_mean=args.x_mean, propensity_beta=args.propensity_beta, propensity_intercept=args.propensity_intercept, beta_shift_time=1)
     output_data(dg, args, args.out_source_file)
 
     if args.out_data_gen_file:

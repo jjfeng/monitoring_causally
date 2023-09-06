@@ -110,17 +110,20 @@ def subgroup_func(x, pred_y_a):
         axis=1,
     )
 
-def score_subgroup_func(x, pred_y_a, propensity_inputs):
+def score_subgroup_func(x, pred_y_a, a, propensity_inputs):
     pred_pos = pred_y_a > THRES
-    mdl_pred_diff = propensity_inputs[:,:1] + 1
-    print("mdl_pred_diff", mdl_pred_diff)
+    mdl_pred_diff = np.minimum(1, np.maximum(0, propensity_inputs[:,:1] + 0.5))
     return np.concatenate(
         [
-            (x[:, :1] < 0) * mdl_pred_diff * pred_pos,
-            (x[:, :1] > 0) * mdl_pred_diff * pred_pos,
-            (x[:, 1:2] < 0) * mdl_pred_diff * pred_pos,
-            (x[:, 1:2] > 0) * mdl_pred_diff * pred_pos,
+            (x[:, :1] < 0) * pred_pos,
+            (x[:, :1] > 0) * pred_pos,
+            (x[:, 1:2] < 0) * pred_pos,
+            (x[:, 1:2] > 0) * pred_pos,
             mdl_pred_diff * pred_pos,
+            # mdl_pred_diff * (a == 0) * pred_pos,
+            # mdl_pred_diff * (a == 1) * pred_pos,
+            # (a == 0) * pred_pos,
+            # (a == 1) * pred_pos,
             # np.logical_not(pred_pos)
         ],
         axis=1,
@@ -141,7 +144,7 @@ def main():
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
 
-    expected_vals = pd.Series({"ppv": 0.9})
+    expected_vals = pd.Series({"ppv": 0.7})
     alpha_spending_func = lambda x: min(1, args.alpha/args.num_iters * x)
 
     # Score monitoring
