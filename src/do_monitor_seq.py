@@ -97,14 +97,14 @@ def parse_args():
 
 
 def subgroup_func(x, pred_y_a):
+    pred_pos = pred_y_a > THRES
     return np.concatenate(
         [
-            x[:, :1] < 0,
-            x[:, :1] > 0,
-            x[:, 1:2] < 0,
-            x[:, 1:2] > 0,
-            pred_y_a > THRES,
-            pred_y_a < THRES,
+            (x[:, :1] < 0) * pred_pos,
+            (x[:, :1] > 0) * pred_pos,
+            (x[:, 1:2] < 0) * pred_pos,
+            (x[:, 1:2] > 0) * pred_pos,
+            pred_pos,
         ],
         axis=1,
     )
