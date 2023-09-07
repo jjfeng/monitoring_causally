@@ -163,6 +163,15 @@ class CUSUM_naive(CUSUM):
 
 
 class wCUSUM(CUSUM):
+    """Monitor PPV, weighted to equal the original PPV
+
+    PPV_delta = E[(1{y = 1} - PPV) * p(y|x,a) * p_ind(a,x|p(f(x,a) = 1)]
+    weightedPPV_delta = E[(1{y = 1} - PPV) * p_ind(a,x|f(x,a) = 1)/p(a,x|f(x,a) = 1) * p(y|x,a)]
+    p_ind(a,x|f(x,a) = 1)/p(a,x|f(x,a) = 1) = p_ind(a,x,f(x,a) = 1)/p(a,x,f(x,a) = 1) * p(f(x,a) = 1)/p_ind(f(x,a) = 1)
+    assuming f(x,a) = 1, then p_ind(a,x,f(x,a) = 1)/p(a,x,f(x,a) = 1)
+                                    = p_ind(a)/p(a|x) = 0.5/p(a|x) if both values are possible
+                                    = 1 if only one value is possible
+    """
     def __init__(
         self,
         mdl,
@@ -217,6 +226,7 @@ class wCUSUM(CUSUM):
             oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
                 (1, -1, 1)
             )
+            assert np.max(oracle_propensity) < 1 and np.min(oracle_propensity) > 0
             oracle_weight = 1 / oracle_propensity
 
             iter_ppv_stats = self._get_iter_stat(

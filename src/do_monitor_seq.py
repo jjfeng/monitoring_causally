@@ -145,10 +145,10 @@ def main():
     # WCUSUM with Intervention
     np.random.seed(seed)
     propensity_beta_intervene = np.zeros(data_gen.propensity_beta.shape)
-    propensity_beta_intervene[0] = 100
+    propensity_beta_intervene[0] = 0
     wcusum_int = wCUSUM(
         mdl,
-        threshold=0.5,
+        threshold=THRES,
         batch_size=args.batch_size,
         expected_vals=expected_vals,
         propensity_beta=propensity_beta_intervene,
