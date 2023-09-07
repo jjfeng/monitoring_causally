@@ -4,6 +4,8 @@ import logging
 import numpy as np
 import pandas as pd
 
+from matplotlib import pyplot as plt
+
 from data_generator import DataGenerator
 
 
@@ -40,22 +42,25 @@ class CUSUM:
     def do_bootstrap_update(
         self, pred_y_a: np.ndarray, eff_count: int, alt_overest: bool = False, **kwargs
     ):
-        sign = -1 if alt_overest else 1
+        test_sign = -1 if alt_overest else 1
         boot_ys = np.random.binomial(
             n=1,
-            p=pred_y_a.reshape((1, -1)) + sign * self.delta,
+            p=pred_y_a.reshape((1, -1)) + test_sign * self.delta,
             size=(self.boot_cumsums.shape[0], pred_y_a.size)
             if self.boot_cumsums is not None
             else (self.n_bootstrap, pred_y_a.size),
         )
         boot_iter_stat, _ = self._get_iter_stat(boot_ys[:, :, np.newaxis], **kwargs)
+        print("boot_iter_stat", boot_iter_stat.shape)
         self.boot_cumsums = (
             np.concatenate([self.boot_cumsums + boot_iter_stat, boot_iter_stat], axis=1)
             if self.boot_cumsums is not None
             else boot_iter_stat
         )
         boot_cusums = np.maximum(np.max(np.max(self.boot_cumsums, axis=1), axis=1), 0)
-
+        # plt.hist(boot_cusums)
+        # plt.show()
+        
         quantile = (
             self.n_bootstrap
             * (1 - self.alpha_spending_func(eff_count))
@@ -403,11 +408,9 @@ class CUSUM_score(CUSUM):
         pred_y_a = self.mdl.predict_proba(
             np.concatenate([x, a[:, np.newaxis]], axis=1)
         )[:, 1].reshape((1, -1, 1))
-        print("pred_y_a", pred_y_a)
         h = self.subgroup_func(
             x, pred_y_a.reshape((-1, 1)), a.reshape((-1, 1)), propensity_inputs
         )
-        print("h", h)
 
         iter_score_stats = self._get_iter_stat(
             y.reshape((1, -1, 1)), mdl_pred=pred_y_a, h=h[np.newaxis, :, :], collate=False,
@@ -417,7 +420,7 @@ class CUSUM_score(CUSUM):
         print("subg_var_ests", subg_var_ests)
         subg_weights = 1 / np.sqrt(subg_var_ests)
         subg_weights[np.isinf(subg_weights)] = 0
-        return subg_weights.reshape((1, 1, -1))
+        return subg_weights.reshape((1, 1, -1))/subg_weights.max()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         print("Do %s monitor" % self.label)
@@ -445,7 +448,6 @@ class CUSUM_score(CUSUM):
             iter_score, ppv_incr = self._get_iter_stat(
                 y.reshape((1, -1, 1)), mdl_pred=pred_y_a, h=h[np.newaxis, :, :], collate=True
             )
-            print("iter_Sc", iter_score.shape)
             ppv_count += ppv_incr
 
             score_cumsums = (
@@ -453,6 +455,7 @@ class CUSUM_score(CUSUM):
                 if score_cumsums is not None
                 else iter_score
             )
+            print("score_cumsums", score_cumsums.shape)
             score_cusums.append(max(np.max(score_cumsums), 0))
             logging.info(
                 "score estimate %s", score_cumsums[0] / self.batch_size / (i + 1)
