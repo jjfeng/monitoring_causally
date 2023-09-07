@@ -13,7 +13,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ITERS = 30
-NUM_SEEDS = 3
+NUM_SEEDS = 8
 NUM_VAR = 2
 BATCH_SIZE = 50
 BETA_SHIFT_TIME = 3
@@ -228,14 +228,18 @@ nest.pop('seed')
 def aggregate(env, outdir, c):
     targets = [
         join(outdir, 'plot_power.png'),
+        join(outdir, 'aggregate.csv'),
     ]
     res_files = ','.join([join('simulation_estimands', f) for f in c['res_agg']])
 
     cmd = [
-        'python plot_estimands.py',
+        'python plot_simulation_estimands.py',
+        '--shift-time',
+        BETA_SHIFT_TIME,
         '--result',
         res_files,
         '--plot ${TARGETS[0]}',
+        '--csv-file ${TARGETS[1]}',
     ]
     return env.Command(
         targets,

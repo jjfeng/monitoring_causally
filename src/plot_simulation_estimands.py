@@ -17,8 +17,9 @@ def parse_args():
         description="aggregate result files, get power of methods"
     )
     parser.add_argument(
-        "--num-seeds",
+        "--shift-time",
         type=int,
+        default=0
     )
     parser.add_argument(
         "--result-files",
@@ -27,6 +28,10 @@ def parse_args():
     parser.add_argument(
         "--do-agg",
         action="store_true",
+    )
+    parser.add_argument(
+        "--csv-file",
+        type=str,
     )
     parser.add_argument(
         "--log-file",
@@ -49,22 +54,26 @@ def main():
     )
     logging.info(args)
 
+    max_time = 0
     all_res = []
     for idx, f in enumerate(args.result_files):
         res = pd.read_csv(f)
-        max_time = res.actual_iter.max()
+        max_time = res.actual_iter.max() + 1
         fire_dict = {
             'procedure': [],
-            'fire_time': [],
+            'alert_time': [],
         }
         for procedure_name in res.label.unique():
             is_fired, fire_time = CUSUM.is_fired_alarm(res[res.label == procedure_name])
             fire_dict['procedure'].append(procedure_name)
             fire_dict['alert_time'].append(fire_time if is_fired else max_time * 2)
-        all_res.append(fire_dict)
-    all_res = pd.concat(all_res).reset_index()
+        fire_df = pd.DataFrame(fire_dict)
+        fire_df['seed'] = idx
+        all_res.append(fire_df)
+    all_res = pd.concat(all_res).reset_index(drop=True)
 
-    # bins = np.linspace(-20, 20, 40)
+    all_res.to_csv(args.csv_file, index=False)
+
     print(all_res)
     ax = sns.ecdfplot(
         data=all_res,
@@ -72,6 +81,7 @@ def main():
         hue='procedure',
         legend=True
     )
+    plt.axvline(x=args.shift_time, color="black", linestyle="--")
     plt.xlim(0, max_time + 1)
     ax.set_xlabel("Alarm time")
     plt.tight_layout()

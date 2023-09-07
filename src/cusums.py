@@ -373,6 +373,7 @@ class CUSUM_score(CUSUM):
         self.delta = delta
         self.halt_when_fired = halt_when_fired
         self.alt_overest = alt_overest
+        self.subg_weights = np.ones(1)
     
     @property
     def label(self):
@@ -380,13 +381,49 @@ class CUSUM_score(CUSUM):
 
     def _get_iter_stat(self, y, **kwargs):
         test_sign = -1 if self.alt_overest else 1
-        iter_stats = (y - (test_sign * self.delta + kwargs["mdl_pred"])) * kwargs["h"] * test_sign
+        iter_stats = (
+            (y - (test_sign * self.delta + kwargs["mdl_pred"])) * kwargs["h"] *  test_sign
+            * self.subg_weights
+        )
         num_nonzero = (np.sum(kwargs["h"], axis=2) > 0).sum()
         print("num_nonzero", num_nonzero)
-        return np.sum(iter_stats, axis=1, keepdims=True), num_nonzero
+        if kwargs['collate']:
+            return np.sum(iter_stats, axis=1, keepdims=True), num_nonzero
+        else:
+            return iter_stats, num_nonzero
+
+    def _setup(self, data_gen: DataGenerator):
+        print("DO SETUP")
+        # estimate class variance
+        # TOOO: do not use oracle for variance
+        data_gen = copy.deepcopy(data_gen)
+        data_gen.propensity_beta = None
+        x, y, a = data_gen.generate(self.n_bootstrap, mdl=None)
+        propensity_inputs = data_gen._get_propensity_inputs(x, self.mdl)
+        pred_y_a = self.mdl.predict_proba(
+            np.concatenate([x, a[:, np.newaxis]], axis=1)
+        )[:, 1].reshape((1, -1, 1))
+        print("pred_y_a", pred_y_a)
+        h = self.subgroup_func(
+            x, pred_y_a.reshape((-1, 1)), a.reshape((-1, 1)), propensity_inputs
+        )
+        print("h", h)
+
+        iter_score_stats = self._get_iter_stat(
+            y.reshape((1, -1, 1)), mdl_pred=pred_y_a, h=h[np.newaxis, :, :], collate=False,
+        )[0]
+        print("iter_score_stats", iter_score_stats.shape)
+        subg_var_ests = np.var(iter_score_stats, axis=1)
+        print("subg_var_ests", subg_var_ests)
+        subg_weights = 1 / np.sqrt(subg_var_ests)
+        subg_weights[np.isinf(subg_weights)] = 0
+        return subg_weights.reshape((1, 1, -1))
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         print("Do %s monitor" % self.label)
+        self.subg_weights = self._setup(data_gen)
+        print("self.subg_weights", self.subg_weights)
+
         self.boot_cumsums = None
         score_cumsums = None
         score_cusums = []
@@ -406,8 +443,9 @@ class CUSUM_score(CUSUM):
             assert np.all(h >= 0)
 
             iter_score, ppv_incr = self._get_iter_stat(
-                y.reshape((1, -1, 1)), mdl_pred=pred_y_a, h=h[np.newaxis, :, :]
+                y.reshape((1, -1, 1)), mdl_pred=pred_y_a, h=h[np.newaxis, :, :], collate=True
             )
+            print("iter_Sc", iter_score.shape)
             ppv_count += ppv_incr
 
             score_cumsums = (
@@ -426,6 +464,7 @@ class CUSUM_score(CUSUM):
                 alt_overest=self.alt_overest,
                 h=h[np.newaxis, :, :],
                 mdl_pred=pred_y_a,
+                collate=True,
             )
             dcl.append(thres)
 

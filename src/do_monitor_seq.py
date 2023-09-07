@@ -112,14 +112,14 @@ def subgroup_func(x, pred_y_a):
 
 def score_subgroup_func(x, pred_y_a, a, propensity_inputs):
     pred_pos = pred_y_a > THRES
-    mdl_pred_diff = np.minimum(1, np.maximum(0, propensity_inputs[:, :1] + 0.5))
     return np.concatenate(
         [
             (x[:, :1] < 2) * pred_pos,
             # (x[:, :1] > 2) * pred_pos,
             (x[:, 1:2] < 2) * pred_pos,
             # (x[:, 1:2] > 2) * pred_pos,
-            mdl_pred_diff * pred_pos,
+            # TODO: clean this up --- weight by 1/sqrt(variance)
+            pred_pos,
         ],
         axis=1,
     )
@@ -142,46 +142,7 @@ def main():
     expected_vals = pd.Series({"ppv": 0.66})
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
 
-    # WCUSUM with Intervention
-    np.random.seed(seed)
-    propensity_beta_intervene = np.zeros(data_gen.propensity_beta.shape)
-    propensity_beta_intervene[0] = 0
-    wcusum_int = wCUSUM(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        expected_vals=expected_vals,
-        propensity_beta=propensity_beta_intervene,
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-    )
-    wcusum_int_res_df = wcusum_int.do_monitor(
-        num_iters=args.num_iters, data_gen=data_gen
-    )
-    logging.info("wcusum_int fired? %s", CUSUM.is_fired_alarm(wcusum_int_res_df))
-
-    # Score monitoring
-    # TODO: this is a one-sided score monitor
-    # np.random.seed(seed)
-    # score_cusum = CUSUM_score(
-    #     mdl,
-    #     threshold=THRES,
-    #     expected_vals=expected_vals,
-    #     batch_size=args.batch_size,
-    #     alpha_spending_func=alpha_spending_func,
-    #     subgroup_func=score_subgroup_func,
-    #     delta=args.delta,
-    #     n_bootstrap=args.n_boot,
-    #     alt_overest=False, # check if we underestimated
-    # )
-    # score_cusum_res_df_under = score_cusum.do_monitor(
-    #     num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
-    # )
-    # logging.info(
-    #     "%s fired? %s", score_cusum.label, score_cusum.is_fired_alarm(score_cusum_res_df_under)
-    # )
-
+    # SCORE
     np.random.seed(seed)
     score_cusum = CUSUM_score(
         mdl,
@@ -200,6 +161,24 @@ def main():
     logging.info(
         "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_res_df_over)
     )
+    # WCUSUM with Intervention
+    np.random.seed(seed)
+    propensity_beta_intervene = np.zeros(data_gen.propensity_beta.shape)
+    propensity_beta_intervene[0] = 0
+    wcusum_int = wCUSUM(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        expected_vals=expected_vals,
+        propensity_beta=propensity_beta_intervene,
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    wcusum_int_res_df = wcusum_int.do_monitor(
+        num_iters=args.num_iters, data_gen=data_gen
+    )
+    logging.info("wcusum_int fired? %s", CUSUM.is_fired_alarm(wcusum_int_res_df))
 
     # WCUSUM with subgroups, no intervention, oracle propensity model
     np.random.seed(seed)
@@ -261,12 +240,12 @@ def main():
 
     res_df.to_csv(args.out_file, index=False)
 
-    plt.clf()
-    plt.figure(figsize=(10, 6))
-    sns.lineplot(data=res_df, x="actual_iter", y="value", hue="label", style="variable")
-    plt.legend()
-    plt.savefig(args.plot_file)
-    print(args.plot_file)
+    # plt.clf()
+    # plt.figure(figsize=(10, 6))
+    # sns.lineplot(data=res_df, x="actual_iter", y="value", hue="label", style="variable")
+    # plt.legend()
+    # plt.savefig(args.plot_file)
+    # print(args.plot_file)
 
 
 if __name__ == "__main__":
