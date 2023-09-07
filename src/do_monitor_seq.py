@@ -105,7 +105,6 @@ def subgroup_func(x, pred_y_a):
             (x[:, 1:2] < 0) * pred_pos,
             (x[:, 1:2] > 0) * pred_pos,
             pred_pos,
-            # np.logical_not(pred_pos)
         ],
         axis=1,
     )
@@ -121,11 +120,6 @@ def score_subgroup_func(x, pred_y_a, a, propensity_inputs):
             (x[:, 1:2] < 0) * pred_pos,
             (x[:, 1:2] > 0) * pred_pos,
             mdl_pred_diff * pred_pos,
-            # mdl_pred_diff * (a == 0) * pred_pos,
-            # mdl_pred_diff * (a == 1) * pred_pos,
-            # (a == 0) * pred_pos,
-            # (a == 1) * pred_pos,
-            # np.logical_not(pred_pos)
         ],
         axis=1,
     )
@@ -145,8 +139,8 @@ def main():
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
 
-    expected_vals = pd.Series({"ppv": 0.9})
-    alpha_spending_func = lambda x: min(1, args.alpha / args.num_iters/ args.batch_size * x)
+    expected_vals = pd.Series({"ppv": 0.66})
+    alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
 
     # Score monitoring
     # TODO: this is a one-sided score monitor

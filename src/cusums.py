@@ -60,7 +60,7 @@ class CUSUM:
             * (1 - self.alpha_spending_func(eff_count))
             / self.boot_cumsums.shape[0]
         )
-        print("quantile", quantile, eff_count, np.max(boot_cusums))
+        print("quantile", quantile, eff_count, np.max(boot_cusums), self.alpha_spending_func(eff_count))
         if quantile < 1:
             thres = np.quantile(
                 boot_cusums,
@@ -311,6 +311,7 @@ class wCUSUM(CUSUM):
             dcl.append(thres)
 
             logging.info("%s control_stat %f", self.label, ppv_cusums[-1])
+            logging.info("%s dcl %f", self.label, dcl[-1])
             fired = ppv_cusums[-1] > dcl[-1]
             if fired and self.halt_when_fired:
                 break
@@ -355,7 +356,8 @@ class CUSUM_score(CUSUM):
 
     def _get_iter_stat(self, y, **kwargs):
         iter_stats = (kwargs["mdl_pred"] - y) * kwargs["h"]
-        num_nonzero = (kwargs["h"] >= 0).sum()
+        num_nonzero = (np.sum(kwargs["h"], axis=2) > 0).sum()
+        print("num_nonzero", num_nonzero)
         return np.sum(iter_stats, axis=1, keepdims=True), num_nonzero
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
@@ -395,7 +397,7 @@ class CUSUM_score(CUSUM):
 
             thres = self.do_bootstrap_update(
                 pred_y_a,
-                eff_count=(i + 1) * ppv_count,
+                eff_count=ppv_count,
                 alt_overest=True,
                 h=h[np.newaxis, :, :],
                 mdl_pred=pred_y_a,
@@ -403,6 +405,7 @@ class CUSUM_score(CUSUM):
             dcl.append(thres)
 
             logging.info("%s control_stat %f", self.label, score_cusums[-1])
+            logging.info("%s dcl %f", self.label, dcl[-1])
             fired = score_cusums[-1] > dcl[-1]
             if fired and self.halt_when_fired:
                 break
