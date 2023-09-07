@@ -19,11 +19,11 @@ BATCH_SIZE = 20
 BETA_SHIFT_TIME = 2
 DELTA = 0.01
 ALPHA = 0.1
-PROPENSITY_BETA = '10,0,0'
+PROPENSITY_BETA = '8,0,0'
 PROPENSITY_INTERCEPT = -5
 INTERCEPT = -1
 SOURCE_BETA = '0,0,0,1,1'
-TARGET_BETA = '0,0,0,0.5,0.5'
+TARGET_BETA = '0,0,0,1,1'
 X_SOURCE_MEAN = ",".join(["2"] * NUM_VAR)
 
 @nest.add_target_with_env(localenv)
@@ -45,6 +45,8 @@ def make_train_data(env, outdir, c):
         '--x-mean',
         X_SOURCE_MEAN,
         '--intercept=%.2f' % INTERCEPT,
+        '--shift-type',
+        'small_x_shift',
         '--source-beta',
         SOURCE_BETA,
         '--target-beta',

@@ -116,3 +116,13 @@ class DataGenerator:
         A = self._generate_A(X, mdl)
         y = self._generate_Y(X, A)
         return X, y, A
+
+class SmallXShiftDataGenerator(DataGenerator):
+    def _get_prob(self, X, A):
+        print("asjdkfljakdlsf")
+        a_x_xa = np.concatenate([A[:, np.newaxis], X, A[:, np.newaxis] * X], axis=1)
+        beta = self.source_beta if not self.is_shifted else self.target_beta
+        logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
+        if self.is_shifted:
+            logit -= X[:,:1] < 0.5
+        return 1 / (1 + np.exp(-logit))
