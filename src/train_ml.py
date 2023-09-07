@@ -210,7 +210,6 @@ def main():
     do_evaluate_model(
         mdl, target_testX, target_y, plot_file=args.plot_target_file, prefix="target"
     )
-    1 / 0
 
 
 if __name__ == "__main__":

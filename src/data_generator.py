@@ -1,5 +1,7 @@
 import numpy as np
 
+from matplotlib import pyplot as plt
+
 from common import to_safe_prob
 
 
@@ -84,6 +86,8 @@ class DataGenerator:
                     np.min(propensity_pos),
                     np.max(propensity_pos),
                 )
+                # plt.hist(propensity_pos)
+                # plt.show()
             return propensity
 
     def _generate_X(self, num_obs):

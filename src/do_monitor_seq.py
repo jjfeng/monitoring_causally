@@ -145,8 +145,8 @@ def main():
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
 
-    expected_vals = pd.Series({"ppv": 0.7})
-    alpha_spending_func = lambda x: min(1, args.alpha / args.num_iters * x)
+    expected_vals = pd.Series({"ppv": 0.9})
+    alpha_spending_func = lambda x: min(1, args.alpha / args.num_iters/ args.batch_size * x)
 
     # Score monitoring
     # TODO: this is a one-sided score monitor
@@ -201,7 +201,7 @@ def main():
     )
     cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("cusum fired? %s", cusum.is_fired_alarm(cusum_res_df))
-
+    
     # # WCUSUM avg, no intervention, oracle propensity model
     np.random.seed(seed)
     wcusum = wCUSUM(
