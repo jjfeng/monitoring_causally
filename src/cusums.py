@@ -53,7 +53,7 @@ class CUSUM:
             if self.boot_cumsums is not None
             else boot_iter_stat
         )
-        boot_cusums = np.max(np.max(self.boot_cumsums, axis=1), axis=1)
+        boot_cusums = np.maximum(np.max(np.max(self.boot_cumsums, axis=1), axis=1), 0)
 
         quantile = (
             self.n_bootstrap
@@ -132,7 +132,7 @@ class CUSUM_naive(CUSUM):
                 if ppv_cumsums is not None
                 else iter_ppv_stat
             )
-            ppv_cusums.append(np.max(ppv_cumsums))
+            ppv_cusums.append(max(0, np.max(ppv_cumsums)))
             logging.info(
                 "PPV estimate naive %f", ppv_cumsums[0] / (i + 1) / self.batch_size
             )
@@ -292,7 +292,7 @@ class wCUSUM(CUSUM):
             #     else h_sum
             # )
             ppv_cusums.append(
-                np.max(ppv_cumsums)  # [subg_counts > 0]) if subg_counts.sum() else 0
+                max(np.max(ppv_cumsums), 0)  # [subg_counts > 0]) if subg_counts.sum() else 0
             )
             logging.info(
                 "PPV estimate weighted %s",
@@ -330,8 +330,11 @@ class wCUSUM(CUSUM):
 
 
 class CUSUM_score(CUSUM):
-    label = "sCUSUM"
+    """Score-base CUSUM
 
+    alt_overest=True: p0(x) < f(x) - delta, (f(x) - delta) - y
+    alt_overest=False: p0(x) > f(x) + delta, y - (f(x) + delta)
+    """
     def __init__(
         self,
         mdl,
@@ -343,6 +346,7 @@ class CUSUM_score(CUSUM):
         n_bootstrap: int = 1000,
         delta: float = 0,
         halt_when_fired: bool = True,
+        alt_overest: bool = True,
     ):
         self.mdl = mdl
         self.threshold = threshold
@@ -353,9 +357,15 @@ class CUSUM_score(CUSUM):
         self.n_bootstrap = n_bootstrap
         self.delta = delta
         self.halt_when_fired = halt_when_fired
+        self.alt_overest = alt_overest
+    
+    @property
+    def label(self):
+        return "sCUSUM_%s" % ('greater' if self.alt_overest else 'less')
 
     def _get_iter_stat(self, y, **kwargs):
-        iter_stats = (kwargs["mdl_pred"] - y) * kwargs["h"]
+        test_sign = -1 if self.alt_overest else 1
+        iter_stats = (y - (test_sign * self.delta + kwargs["mdl_pred"])) * kwargs["h"] * test_sign
         num_nonzero = (np.sum(kwargs["h"], axis=2) > 0).sum()
         print("num_nonzero", num_nonzero)
         return np.sum(iter_stats, axis=1, keepdims=True), num_nonzero
@@ -390,7 +400,7 @@ class CUSUM_score(CUSUM):
                 if score_cumsums is not None
                 else iter_score
             )
-            score_cusums.append(np.max(score_cumsums))
+            score_cusums.append(max(np.max(score_cumsums), 0))
             logging.info(
                 "score estimate %s", score_cumsums[0] / self.batch_size / (i + 1)
             )
@@ -398,7 +408,7 @@ class CUSUM_score(CUSUM):
             thres = self.do_bootstrap_update(
                 pred_y_a,
                 eff_count=ppv_count,
-                alt_overest=True,
+                alt_overest=self.alt_overest,
                 h=h[np.newaxis, :, :],
                 mdl_pred=pred_y_a,
             )

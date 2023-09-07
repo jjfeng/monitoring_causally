@@ -127,5 +127,5 @@ class SmallXShiftDataGenerator(DataGenerator):
         beta = self.source_beta if not self.is_shifted else self.target_beta
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         if self.is_shifted:
-            logit -= (X[:,:1] < 2) + (X[:,1:2] < 2)
+            logit -= 2 * (X[:,:1] < 2) + (X[:,1:2] < 2)
         return 1 / (1 + np.exp(-logit))

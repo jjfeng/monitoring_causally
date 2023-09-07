@@ -100,10 +100,10 @@ def subgroup_func(x, pred_y_a):
     pred_pos = pred_y_a > THRES
     return np.concatenate(
         [
-            (x[:, :1] < 0) * pred_pos,
-            (x[:, :1] > 0) * pred_pos,
-            (x[:, 1:2] < 0) * pred_pos,
-            (x[:, 1:2] > 0) * pred_pos,
+            (x[:, :1] < 2) * pred_pos,
+            # (x[:, :1] > 2) * pred_pos,
+            (x[:, 1:2] < 2) * pred_pos,
+            # (x[:, 1:2] > 2) * pred_pos,
             pred_pos,
         ],
         axis=1,
@@ -115,10 +115,10 @@ def score_subgroup_func(x, pred_y_a, a, propensity_inputs):
     mdl_pred_diff = np.minimum(1, np.maximum(0, propensity_inputs[:, :1] + 0.5))
     return np.concatenate(
         [
-            (x[:, :1] < 0) * pred_pos,
-            (x[:, :1] > 0) * pred_pos,
-            (x[:, 1:2] < 0) * pred_pos,
-            (x[:, 1:2] > 0) * pred_pos,
+            (x[:, :1] < 2) * pred_pos,
+            # (x[:, :1] > 2) * pred_pos,
+            (x[:, 1:2] < 2) * pred_pos,
+            # (x[:, 1:2] > 2) * pred_pos,
             mdl_pred_diff * pred_pos,
         ],
         axis=1,
@@ -144,6 +144,25 @@ def main():
 
     # Score monitoring
     # TODO: this is a one-sided score monitor
+    # np.random.seed(seed)
+    # score_cusum = CUSUM_score(
+    #     mdl,
+    #     threshold=THRES,
+    #     expected_vals=expected_vals,
+    #     batch_size=args.batch_size,
+    #     alpha_spending_func=alpha_spending_func,
+    #     subgroup_func=score_subgroup_func,
+    #     delta=args.delta,
+    #     n_bootstrap=args.n_boot,
+    #     alt_overest=False, # check if we underestimated
+    # )
+    # score_cusum_res_df_under = score_cusum.do_monitor(
+    #     num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
+    # )
+    # logging.info(
+    #     "%s fired? %s", score_cusum.label, score_cusum.is_fired_alarm(score_cusum_res_df_under)
+    # )
+
     np.random.seed(seed)
     score_cusum = CUSUM_score(
         mdl,
@@ -154,12 +173,13 @@ def main():
         subgroup_func=score_subgroup_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
+        alt_overest=True, # check if we overestimated
     )
-    score_cusum_res_df = score_cusum.do_monitor(
+    score_cusum_res_df_over = score_cusum.do_monitor(
         num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
     )
     logging.info(
-        "score_cusum fired? %s", score_cusum.is_fired_alarm(score_cusum_res_df)
+        "%s fired? %s", score_cusum.label, score_cusum.is_fired_alarm(score_cusum_res_df_over)
     )
 
     # WCUSUM with subgroups, no intervention, oracle propensity model
@@ -234,7 +254,8 @@ def main():
             wcusum_res_df,
             wcusum_int_res_df,
             wcusum_subg_res_df,
-            score_cusum_res_df,
+            score_cusum_res_df_over,
+            # score_cusum_res_df_under,
         ]
     )
 
