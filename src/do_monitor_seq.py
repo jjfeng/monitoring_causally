@@ -142,6 +142,25 @@ def main():
     expected_vals = pd.Series({"ppv": 0.66})
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
 
+    # WCUSUM with Intervention
+    np.random.seed(seed)
+    propensity_beta_intervene = np.zeros(data_gen.propensity_beta.shape)
+    propensity_beta_intervene[0] = 100
+    wcusum_int = wCUSUM(
+        mdl,
+        threshold=0.5,
+        batch_size=args.batch_size,
+        expected_vals=expected_vals,
+        propensity_beta=propensity_beta_intervene,
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    wcusum_int_res_df = wcusum_int.do_monitor(
+        num_iters=args.num_iters, data_gen=data_gen
+    )
+    logging.info("wcusum_int fired? %s", wcusum_int.is_fired_alarm(wcusum_int_res_df))
+
     # Score monitoring
     # TODO: this is a one-sided score monitor
     # np.random.seed(seed)
@@ -189,7 +208,6 @@ def main():
         threshold=THRES,
         expected_vals=expected_vals,
         batch_size=args.batch_size,
-        propensity_beta=None,
         alpha_spending_func=alpha_spending_func,
         subgroup_func=subgroup_func,
         delta=args.delta,
@@ -223,30 +241,12 @@ def main():
         threshold=THRES,
         batch_size=args.batch_size,
         expected_vals=expected_vals,
-        propensity_beta=None,
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
     )
     wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("wcusum fired? %s", wcusum.is_fired_alarm(wcusum_res_df))
-
-    # WCUSUM with Intervention
-    np.random.seed(seed)
-    wcusum_int = wCUSUM(
-        mdl,
-        threshold=0.5,
-        batch_size=args.batch_size,
-        expected_vals=expected_vals,
-        propensity_beta=np.zeros(data_gen.propensity_beta.size),
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-    )
-    wcusum_int_res_df = wcusum_int.do_monitor(
-        num_iters=args.num_iters, data_gen=data_gen
-    )
-    logging.info("wcusum_int fired? %s", wcusum_int.is_fired_alarm(wcusum_int_res_df))
 
     res_df = pd.concat(
         [

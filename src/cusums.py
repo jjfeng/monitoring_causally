@@ -170,6 +170,7 @@ class wCUSUM(CUSUM):
         expected_vals: pd.Series,
         alpha_spending_func,
         propensity_beta: np.ndarray = None,
+        propensity_intercept: float = 0,
         batch_size: int = 1,
         subgroup_func=None,
         n_bootstrap: int = 10000,
@@ -182,6 +183,7 @@ class wCUSUM(CUSUM):
         self.expected_vals = expected_vals
         self.alpha_spending_func = alpha_spending_func
         self.propensity_beta = propensity_beta
+        self.propensity_intercept = propensity_intercept
         self.subgroup_func = subgroup_func
         self.delta = delta
         self.n_bootstrap = n_bootstrap
@@ -200,7 +202,7 @@ class wCUSUM(CUSUM):
         data_gen = copy.deepcopy(data_gen)
         if self.propensity_beta is not None:
             data_gen.propensity_beta = self.propensity_beta
-            data_gen.propensity_intercept = 0
+            data_gen.propensity_intercept = self.propensity_intercept
 
         # estimate class variance
         subg_weights = np.ones(1)
@@ -211,7 +213,8 @@ class wCUSUM(CUSUM):
             )[:, 1].reshape((1, -1, 1))
             pred_class = (pred_y_a > self.threshold).astype(int)
             h = self.subgroup_func(x, pred_y_a.reshape((-1, 1)))
-            oracle_propensity = data_gen._get_propensity(x, mdl=self.mdl).reshape(
+            oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
+            oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
                 (1, -1, 1)
             )
             oracle_weight = 1 / oracle_propensity
@@ -265,7 +268,8 @@ class wCUSUM(CUSUM):
                 if self.subgroup_func is not None
                 else np.ones(1)
             )
-            oracle_propensity = data_gen._get_propensity(x, mdl=self.mdl).reshape(
+            oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
+            oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
                 (1, -1, 1)
             )
             oracle_weight = 1 / oracle_propensity
