@@ -13,7 +13,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ITERS = 30
-NUM_SEEDS = 1
+NUM_SEEDS = 3
 NUM_VAR = 2
 BATCH_SIZE = 50
 BETA_SHIFT_TIME = 3
@@ -224,30 +224,20 @@ def plot_cusum(env, outdir, c):
 
 nest.pop('seed')
 
-# @nest.add_target_with_env(localenv)
-# def aggregate(env, outdir, c):
-#     targets = [
-#         join(outdir, 'hist.png'),
-#     ]
-#     res_files = ','.join([join('simulation', f) for f in c['res_agg']])
+@nest.add_target_with_env(localenv)
+def aggregate(env, outdir, c):
+    targets = [
+        join(outdir, 'plot_power.png'),
+    ]
+    res_files = ','.join([join('simulation_estimands', f) for f in c['res_agg']])
 
-#     cmd = [
-#         'python aggregate.py',
-#         '--result',
-#         res_files,
-#         '--plot ${TARGETS[0]}',
-#     ]
-#     # cmd = [
-#     #     'python run_script.py',
-#     #     '--cluster',
-#     #     localenv['cluster'],
-#     #     '--target-template-file',
-#     #     '${TARGETS[0]}',
-#     #     '--num-jobs',
-#     #     NUM_JOBS,
-#     #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
-#     # ]
-#     return env.Command(
-#         targets,
-#         c['res_agg'],
-#         ' '.join(map(str, cmd)))
+    cmd = [
+        'python plot_estimands.py',
+        '--result',
+        res_files,
+        '--plot ${TARGETS[0]}',
+    ]
+    return env.Command(
+        targets,
+        c['res_agg'],
+        ' '.join(map(str, cmd)))

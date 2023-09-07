@@ -12,7 +12,7 @@ import seaborn as sns
 
 from common import get_n_jobs, read_csv, to_safe_prob
 
-from cusums import CUSUM_naive, wCUSUM, CUSUM_score
+from cusums import CUSUM, CUSUM_naive, wCUSUM, CUSUM_score
 
 THRES = 0.5
 
@@ -159,7 +159,7 @@ def main():
     wcusum_int_res_df = wcusum_int.do_monitor(
         num_iters=args.num_iters, data_gen=data_gen
     )
-    logging.info("wcusum_int fired? %s", wcusum_int.is_fired_alarm(wcusum_int_res_df))
+    logging.info("wcusum_int fired? %s", CUSUM.is_fired_alarm(wcusum_int_res_df))
 
     # Score monitoring
     # TODO: this is a one-sided score monitor
@@ -198,7 +198,7 @@ def main():
         num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
     )
     logging.info(
-        "%s fired? %s", score_cusum.label, score_cusum.is_fired_alarm(score_cusum_res_df_over)
+        "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_res_df_over)
     )
 
     # WCUSUM with subgroups, no intervention, oracle propensity model
@@ -217,7 +217,7 @@ def main():
         num_iters=args.num_iters, data_gen=data_gen
     )
     logging.info(
-        "wcusum_subg fired? %s", wcusum_subg.is_fired_alarm(wcusum_subg_res_df)
+        "wcusum_subg fired? %s", CUSUM.is_fired_alarm(wcusum_subg_res_df)
     )
 
     # Naive CUSUM
@@ -232,7 +232,7 @@ def main():
         n_bootstrap=args.n_boot,
     )
     cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    logging.info("cusum fired? %s", cusum.is_fired_alarm(cusum_res_df))
+    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
     
     # # WCUSUM avg, no intervention, oracle propensity model
     np.random.seed(seed)
@@ -246,7 +246,7 @@ def main():
         n_bootstrap=args.n_boot,
     )
     wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    logging.info("wcusum fired? %s", wcusum.is_fired_alarm(wcusum_res_df))
+    logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))
 
     res_df = pd.concat(
         [

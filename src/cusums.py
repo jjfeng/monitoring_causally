@@ -23,7 +23,8 @@ class CUSUM:
     def _get_iter_stat(self, y, **kwargs):
         raise NotImplementedError()
 
-    def is_fired_alarm(self, res_df: pd.DataFrame):
+    @staticmethod
+    def is_fired_alarm(res_df: pd.DataFrame):
         stat_df = res_df[res_df.variable == "stat"]
         dcl_df = res_df[res_df.variable == "dcl"]
         merged_df = stat_df.merge(
