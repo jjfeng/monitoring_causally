@@ -1,7 +1,7 @@
 {
     "RandomForestClassifier": {
         "max_features": [0.99],
-        "max_depth": [8],
+        "max_depth": [4, 8],
         "n_estimators": [500]
     },
     "LogisticRegression": {

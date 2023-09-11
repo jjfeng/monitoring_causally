@@ -104,11 +104,7 @@ class DataGenerator:
         Returns:
             _type_: _description_
         """
-        return np.maximum(
-            0,
-            np.random.normal(scale=self.scale, size=(num_obs, self.num_p))
-            + self.x_mean,
-        )
+        return np.random.normal(scale=self.scale, size=(num_obs, self.num_p)) + self.x_mean
 
     def _generate_Y(self, X, A):
         probs = self._get_prob(X, A)
@@ -133,5 +129,5 @@ class SmallXShiftDataGenerator(DataGenerator):
         beta = self.source_beta if not self.is_shifted else self.target_beta
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         if self.is_shifted:
-            logit += 1 * (X[:,:1] > 0) + 0.5 * (X[:,1:2] < 0)
+            logit += 0.5 * (X[:,:1] > 0) + 0.5 * (X[:,1:2] < 0)
         return 1 / (1 + np.exp(-logit))

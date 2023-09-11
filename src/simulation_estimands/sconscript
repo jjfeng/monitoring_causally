@@ -22,8 +22,8 @@ ALPHA = 0.1
 PROPENSITY_BETA = '-3,0,0'
 PROPENSITY_INTERCEPT = 0
 INTERCEPT = -0.5
-SOURCE_BETA = '0,0,0,2,-2'
-TARGET_BETA = '0,0,0,2,-1.8'
+SOURCE_BETA = '0,0,0,1.5,-1.5'
+TARGET_BETA = '0,0,0,1.5,-1.3'
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 
 @nest.add_target_with_env(localenv)
@@ -39,7 +39,7 @@ def make_train_data(env, outdir, c):
         '--data-type',
         'simple',
         '--num-obs',
-        5000,
+        10000,
         '--seed-offset',
         0,
         '--x-mean',

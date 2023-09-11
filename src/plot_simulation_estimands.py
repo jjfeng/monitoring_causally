@@ -58,7 +58,7 @@ def main():
     all_res = []
     for idx, f in enumerate(args.result_files):
         res = pd.read_csv(f)
-        max_time = res.actual_iter.max() + 1
+        max_time = max(max_time, res.actual_iter.max() + 1)
         fire_dict = {
             'procedure': [],
             'alert_time': [],

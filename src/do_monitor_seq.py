@@ -153,9 +153,68 @@ def main():
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
 
-    expected_vals = pd.Series({"ppv": 0.66, "npv": 0.8})
+    expected_vals = pd.Series({"ppv": 0.66, "npv": 0.85})
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
+    
+    # SCORE
+    np.random.seed(seed)
+    score_cusum = CUSUM_score(
+        mdl,
+        threshold=THRES,
+        expected_vals=expected_vals,
+        batch_size=args.batch_size,
+        alpha_spending_func=alpha_spending_func,
+        subgroup_func=score_under_subgroup_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        alt_overest=False, # check if we underestimated
+    )
+    score_cusum_res_df_under = score_cusum.do_monitor(
+        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
+    )
+    logging.info(
+        "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_res_df_under)
+    )
 
+    # WCUSUM with subgroups, no intervention, oracle propensity model
+    np.random.seed(seed)
+    wcusum_subg = wCUSUM(
+        mdl,
+        threshold=THRES,
+        expected_vals=expected_vals,
+        batch_size=args.batch_size,
+        alpha_spending_func=alpha_spending_func,
+        subgroup_func=subgroup_npv_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    wcusum_subg_res_df = wcusum_subg.do_monitor(
+        num_iters=args.num_iters, data_gen=data_gen
+    )
+    logging.info(
+        "wcusum_subg fired? %s", CUSUM.is_fired_alarm(wcusum_subg_res_df)
+    )
+
+    # WCUSUM with Intervention
+    np.random.seed(seed)
+    propensity_beta_intervene = np.zeros(data_gen.propensity_beta.shape)
+    propensity_beta_intervene[0] = 0
+    wcusum_int = wCUSUM(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        expected_vals=expected_vals,
+        propensity_beta=propensity_beta_intervene,
+        subgroup_func=avg_npv_func,
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    wcusum_int_res_df = wcusum_int.do_monitor(
+        num_iters=args.num_iters, data_gen=data_gen
+    )
+    logging.info("wcusum_int fired? %s", CUSUM.is_fired_alarm(wcusum_int_res_df))
+    
     # # WCUSUM avg, no intervention, oracle propensity model
     np.random.seed(seed)
     wcusum = wCUSUM(
@@ -185,65 +244,6 @@ def main():
     )
     cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
-    
-    # SCORE
-    np.random.seed(seed)
-    score_cusum = CUSUM_score(
-        mdl,
-        threshold=THRES,
-        expected_vals=expected_vals,
-        batch_size=args.batch_size,
-        alpha_spending_func=alpha_spending_func,
-        subgroup_func=score_under_subgroup_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-        alt_overest=False, # check if we underestimated
-    )
-    score_cusum_res_df_under = score_cusum.do_monitor(
-        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
-    )
-    logging.info(
-        "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_res_df_under)
-    )
-
-    # WCUSUM with Intervention
-    np.random.seed(seed)
-    propensity_beta_intervene = np.zeros(data_gen.propensity_beta.shape)
-    propensity_beta_intervene[0] = 0
-    wcusum_int = wCUSUM(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        expected_vals=expected_vals,
-        propensity_beta=propensity_beta_intervene,
-        subgroup_func=avg_npv_func,
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-    )
-    wcusum_int_res_df = wcusum_int.do_monitor(
-        num_iters=args.num_iters, data_gen=data_gen
-    )
-    logging.info("wcusum_int fired? %s", CUSUM.is_fired_alarm(wcusum_int_res_df))
-
-    # WCUSUM with subgroups, no intervention, oracle propensity model
-    np.random.seed(seed)
-    wcusum_subg = wCUSUM(
-        mdl,
-        threshold=THRES,
-        expected_vals=expected_vals,
-        batch_size=args.batch_size,
-        alpha_spending_func=alpha_spending_func,
-        subgroup_func=subgroup_npv_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-    )
-    wcusum_subg_res_df = wcusum_subg.do_monitor(
-        num_iters=args.num_iters, data_gen=data_gen
-    )
-    logging.info(
-        "wcusum_subg fired? %s", CUSUM.is_fired_alarm(wcusum_subg_res_df)
-    )
 
     res_df = pd.concat(
         [
