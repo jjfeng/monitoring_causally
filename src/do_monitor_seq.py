@@ -95,31 +95,41 @@ def parse_args():
     args.plot_file = args.plot_file_template.replace("JOB", str(args.job_idx))
     return args
 
-
-def subgroup_func(x, pred_y_a):
-    pred_pos = pred_y_a > THRES
+def avg_npv_func(x, a, pred_y_a):
+    pred_class = pred_y_a < THRES
     return np.concatenate(
         [
-            (x[:, :1] < 2) * pred_pos,
-            # (x[:, :1] > 2) * pred_pos,
-            (x[:, 1:2] < 2) * pred_pos,
-            # (x[:, 1:2] > 2) * pred_pos,
-            pred_pos,
+            pred_class * (a == 0),
+            pred_class * (a == 1),
+        ],
+        axis=1,
+    )
+
+def subgroup_npv_func(x, a, pred_y_a):
+    pred_class = pred_y_a < THRES
+    return np.concatenate(
+        [
+            (x[:, :1] > 2) * pred_class * (a == 0),
+            (x[:, 1:2] < 2) * pred_class * (a == 0),
+            pred_class * (a == 0),
+            (x[:, :1] > 2) * pred_class * (a == 1),
+            (x[:, 1:2] < 2) * pred_class * (a == 1),
+            pred_class * (a == 1),
         ],
         axis=1,
     )
 
 
-def score_subgroup_func(x, pred_y_a, a, propensity_inputs):
-    pred_pos = pred_y_a > THRES
+def score_under_subgroup_func(x, pred_y_a, a, propensity_inputs):
+    pred_class = pred_y_a < THRES
     return np.concatenate(
         [
-            (x[:, :1] < 2) * pred_pos,
-            # (x[:, :1] > 2) * pred_pos,
-            (x[:, 1:2] < 2) * pred_pos,
-            # (x[:, 1:2] > 2) * pred_pos,
-            # TODO: clean this up --- weight by 1/sqrt(variance)
-            pred_pos,
+            (x[:, :1] > 2) * pred_class * (a == 0),
+            (x[:, 1:2] < 2) * pred_class * (a == 0),
+            pred_class * (a == 0),
+            (x[:, :1] > 2) * pred_class * (a == 1),
+            (x[:, 1:2] < 2) * pred_class * (a == 1),
+            pred_class * (a == 1),
         ],
         axis=1,
     )
@@ -139,9 +149,24 @@ def main():
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
 
-    expected_vals = pd.Series({"ppv": 0.66})
+    expected_vals = pd.Series({"ppv": 0.66, "npv": 0.8})
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
 
+    # Naive CUSUM
+    np.random.seed(seed)
+    cusum = CUSUM_naive(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        expected_vals=expected_vals,
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        metric="npv",
+    )
+    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
+    
     # SCORE
     np.random.seed(seed)
     score_cusum = CUSUM_score(
@@ -150,17 +175,18 @@ def main():
         expected_vals=expected_vals,
         batch_size=args.batch_size,
         alpha_spending_func=alpha_spending_func,
-        subgroup_func=score_subgroup_func,
+        subgroup_func=score_under_subgroup_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
-        alt_overest=True, # check if we overestimated
+        alt_overest=False, # check if we underestimated
     )
-    score_cusum_res_df_over = score_cusum.do_monitor(
+    score_cusum_res_df_under = score_cusum.do_monitor(
         num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
     )
     logging.info(
-        "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_res_df_over)
+        "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_res_df_under)
     )
+
     # WCUSUM with Intervention
     np.random.seed(seed)
     propensity_beta_intervene = np.zeros(data_gen.propensity_beta.shape)
@@ -171,6 +197,7 @@ def main():
         batch_size=args.batch_size,
         expected_vals=expected_vals,
         propensity_beta=propensity_beta_intervene,
+        subgroup_func=avg_npv_func,
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
@@ -188,7 +215,7 @@ def main():
         expected_vals=expected_vals,
         batch_size=args.batch_size,
         alpha_spending_func=alpha_spending_func,
-        subgroup_func=subgroup_func,
+        subgroup_func=subgroup_npv_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
     )
@@ -199,19 +226,6 @@ def main():
         "wcusum_subg fired? %s", CUSUM.is_fired_alarm(wcusum_subg_res_df)
     )
 
-    # Naive CUSUM
-    np.random.seed(seed)
-    cusum = CUSUM_naive(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        expected_vals=expected_vals,
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-    )
-    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
     
     # # WCUSUM avg, no intervention, oracle propensity model
     np.random.seed(seed)
@@ -220,6 +234,7 @@ def main():
         threshold=THRES,
         batch_size=args.batch_size,
         expected_vals=expected_vals,
+        subgroup_func=avg_npv_func,
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
@@ -233,19 +248,18 @@ def main():
             wcusum_res_df,
             wcusum_int_res_df,
             wcusum_subg_res_df,
-            score_cusum_res_df_over,
-            # score_cusum_res_df_under,
+            score_cusum_res_df_under,
         ]
     )
 
     res_df.to_csv(args.out_file, index=False)
 
-    # plt.clf()
-    # plt.figure(figsize=(10, 6))
-    # sns.lineplot(data=res_df, x="actual_iter", y="value", hue="label", style="variable")
-    # plt.legend()
-    # plt.savefig(args.plot_file)
-    # print(args.plot_file)
+    plt.clf()
+    plt.figure(figsize=(10, 6))
+    sns.lineplot(data=res_df, x="actual_iter", y="value", hue="label", style="variable")
+    plt.legend()
+    plt.savefig(args.plot_file)
+    print(args.plot_file)
 
 
 if __name__ == "__main__":

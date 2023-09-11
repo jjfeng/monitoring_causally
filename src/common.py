@@ -45,8 +45,8 @@ def read_csv(csv_file: str, read_A: bool = False):
         A = df.iloc[:, -2]
         return X, A, Y
     else:
-        X = df.iloc[:, :-1]
-        return X, Y
+        XA = df.iloc[:, :-1]
+        return XA, Y
 
 
 def get_n_jobs():

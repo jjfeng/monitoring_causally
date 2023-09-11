@@ -57,6 +57,7 @@ class CUSUM:
             if self.boot_cumsums is not None
             else boot_iter_stat
         )
+        print(self.boot_cumsums.shape)
         boot_cusums = np.maximum(np.max(np.max(self.boot_cumsums, axis=1), axis=1), 0)
         # plt.hist(boot_cusums)
         # plt.show()
@@ -95,6 +96,7 @@ class CUSUM_naive(CUSUM):
         n_bootstrap: int = 1000,
         delta: float = 0,
         halt_when_fired: bool = True,
+        metric: str = "npv"
     ):
         self.mdl = mdl
         self.threshold = threshold
@@ -104,24 +106,30 @@ class CUSUM_naive(CUSUM):
         self.n_bootstrap = n_bootstrap
         self.delta = delta
         self.halt_when_fired = halt_when_fired
+        self.metric = metric
+        self.is_ppv = metric == "ppv"
+        self.class_mtr = 1 if self.is_ppv else 0
 
     def _get_iter_stat(self, y, **kwargs):
         pred_class = kwargs["pred_class"]
-        mask = pred_class == 1
-        iter_stats = (self.expected_vals["ppv"] - (y == pred_class)) * mask
-        return np.sum(iter_stats, axis=1, keepdims=True), mask.sum()
+        pred_mask = pred_class == self.class_mtr
+        a_mask = np.concatenate([
+            kwargs["a"] == 0,
+            kwargs["a"] == 1], axis=2)
+        iter_stats = (self.expected_vals[self.metric] - (y == pred_class)) * pred_mask * a_mask
+        return np.sum(iter_stats, axis=1, keepdims=True), pred_mask.sum()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         print("Do %s monitor" % self.label)
-        ppv_count = 0
-        ppv_cumsums = None
-        ppv_cusums = []
+        pv_count = 0
+        pv_cumsums = None
+        pv_cusums = []
         self.boot_cumsums = None
         dcl = []
         actual_iters = []
         for i in range(num_iters):
             data_gen.update_time(i, set_seed=True)
-            print("iter", i, ppv_count)
+            print("iter", i, pv_count)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
@@ -129,37 +137,38 @@ class CUSUM_naive(CUSUM):
             pred_class = (pred_y_a > self.threshold).astype(int).reshape((1, -1))
             actual_iters.append(i)
 
-            iter_ppv_stat, ppv_incr = self._get_iter_stat(
-                y[np.newaxis, :], pred_class=pred_class
+            iter_pv_stat, pv_incr = self._get_iter_stat(
+                y[np.newaxis, :, np.newaxis], a=a[np.newaxis,:,np.newaxis], pred_class=pred_class[:,:,np.newaxis]
             )
-            ppv_count += ppv_incr
-            ppv_cumsums = (
-                np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat])
-                if ppv_cumsums is not None
-                else iter_ppv_stat
+            pv_count += pv_incr
+            pv_cumsums = (
+                np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
+                if pv_cumsums is not None
+                else iter_pv_stat
             )
-            ppv_cusums.append(max(0, np.max(ppv_cumsums)))
+            pv_cusums.append(max(0, np.max(pv_cumsums)))
             logging.info(
-                "PPV estimate naive %f", ppv_cumsums[0] / (i + 1) / self.batch_size
+                "PV estimate naive %s", pv_cumsums[0] / (i + 1) / self.batch_size
             )
 
             thres = self.do_bootstrap_update(
                 pred_y_a,
-                ppv_count,
+                pv_count,
+                a=a[np.newaxis,:,np.newaxis],
                 pred_class=pred_class[:, :, np.newaxis],
-                alt_overest=True,
+                alt_overest=self.is_ppv,
             )
             dcl.append(thres)
 
-            logging.info("%s control_stat %f", self.label, ppv_cusums[-1])
+            logging.info("%s control_stat %f", self.label, pv_cusums[-1])
             logging.info("%s dcl %f", self.label, dcl[-1])
-            fired = ppv_cusums[-1] > dcl[-1]
+            fired = pv_cusums[-1] > dcl[-1]
             if fired and self.halt_when_fired:
                 break
 
         ppv_cusum_df = pd.DataFrame(
             {
-                "value": np.concatenate([np.array(ppv_cusums), dcl]),
+                "value": np.concatenate([np.array(pv_cusums), dcl]),
                 "actual_iter": np.concatenate([actual_iters, actual_iters]),
                 "variable": ["stat"] * len(dcl) + ["dcl"] * len(dcl),
             }
@@ -191,6 +200,7 @@ class wCUSUM(CUSUM):
         n_bootstrap: int = 10000,
         delta: float = 0,
         halt_when_fired: bool = True,
+        metric: str = "npv"
     ):
         self.mdl = mdl
         self.threshold = threshold
@@ -204,12 +214,15 @@ class wCUSUM(CUSUM):
         self.n_bootstrap = n_bootstrap
         self.halt_when_fired = halt_when_fired
         self.subg_weights = np.ones(1)
+        self.metric = metric
+        self.is_ppv = metric == "ppv"
+        self.class_mtr = 1 if self.is_ppv else 0
 
     @property
     def label(self):
         return "wCUSUM%s%s" % (
             "_intervene" if self.propensity_beta is not None else "_obs",
-            "_subgroup" if self.subgroup_func is not None else "",
+            "_subgroup%d" % self.subg_weights.size,
         )
 
     def _setup(self, data_gen):
@@ -227,7 +240,7 @@ class wCUSUM(CUSUM):
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:, 1].reshape((1, -1, 1))
             pred_class = (pred_y_a > self.threshold).astype(int)
-            h = self.subgroup_func(x, pred_y_a.reshape((-1, 1)))
+            h = self.subgroup_func(x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
             oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
             oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
                 (1, -1, 1)
@@ -240,47 +253,48 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis, :, :],
+                a=a[np.newaxis, :, np.newaxis],
                 collate=False,
             )[0]
-            iter_ppv_stats = iter_ppv_stats[pred_class.flatten() == 1]
+            iter_ppv_stats = iter_ppv_stats[pred_class.flatten() == self.class_mtr]
             subg_var_ests = np.var(iter_ppv_stats, axis=0)
             subg_weights = 1 / np.sqrt(subg_var_ests)
             subg_weights[np.isinf(subg_weights)] = 0
         return data_gen, subg_weights.reshape((1, 1, -1))
 
     def _get_iter_stat(self, y, **kwargs):
-        mask = kwargs["pred_class"] == 1
+        pred_class = kwargs["pred_class"]
+        pred_mask = pred_class == self.class_mtr
         iter_stats = (
-            (self.expected_vals["ppv"] - (y == kwargs["pred_class"]))
+            (self.expected_vals[self.metric] - (y == kwargs["pred_class"]))
             * kwargs["oracle_weight"]
             * kwargs["h"]
             * self.subg_weights
-        ) * mask
+        ) * pred_mask
         if not kwargs["collate"]:
             return iter_stats
         else:
-            return np.sum(iter_stats, axis=1, keepdims=True), mask.sum()
+            return np.sum(iter_stats, axis=1, keepdims=True), pred_mask.sum()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
-        print("Do %s monitor" % self.label)
         data_gen, self.subg_weights = self._setup(data_gen)
-
-        ppv_count = 0
+        print("Do %s monitor" % self.label)
+        
+        pv_count = 0
         self.boot_cumsums = None
-        ppv_cumsums = None
-        # subg_counts = None
-        ppv_cusums = []
+        pv_cumsums = None
+        pv_cusums = []
         dcl = []
         for i in range(num_iters):
             data_gen.update_time(i, set_seed=True)
-            print("iter", i, len(ppv_cusums))
+            print("iter", i, len(pv_cusums))
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:, 1].reshape((1, -1, 1))
             pred_class = (pred_y_a > self.threshold).astype(int)
             h = (
-                self.subgroup_func(x, pred_y_a.reshape((-1, 1)))
+                self.subgroup_func(x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
                 if self.subgroup_func is not None
                 else np.ones(1)
             )
@@ -291,62 +305,58 @@ class wCUSUM(CUSUM):
             oracle_weight = 1 / oracle_propensity
             # print("weight", oracle_weight, h.shape, self.subg_weights)
 
-            iter_ppv_stat, ppv_incr = self._get_iter_stat(
+            iter_pv_stat, pv_incr = self._get_iter_stat(
                 y.reshape((1, -1, 1)),
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis, :],
+                a=a[np.newaxis,:, np.newaxis],
                 collate=True,
             )
-            ppv_count += ppv_incr
-            ppv_cumsums = (
-                np.concatenate([ppv_cumsums + iter_ppv_stat, iter_ppv_stat])
-                if ppv_cumsums is not None
-                else iter_ppv_stat
+            print("iter_pv_stat", iter_pv_stat.shape)
+            pv_count += pv_incr
+            pv_cumsums = (
+                np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
+                if pv_cumsums is not None
+                else iter_pv_stat
             )
-            # TODO: do we even need this section below?
-            # h_sum = h.sum(axis=0, keepdims=True).reshape((1,1,-1))
-            # subg_counts = (
-            #     np.concatenate([subg_counts + h_sum, h_sum])
-            #     if subg_counts is not None
-            #     else h_sum
-            # )
-            ppv_cusums.append(
-                max(np.max(ppv_cumsums), 0)  # [subg_counts > 0]) if subg_counts.sum() else 0
+            pv_cusums.append(
+                max(np.max(pv_cumsums), 0)
             )
             logging.info(
-                "PPV estimate weighted %s",
-                ppv_cumsums[0, 0] / self.batch_size / (i + 1),
+                "pv estimate weighted %s",
+                pv_cumsums[0, 0] / self.batch_size / (i + 1),
             )
 
             thres = self.do_bootstrap_update(
                 pred_y_a[0],
-                ppv_count,
+                pv_count,
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h,
-                alt_overest=True,
+                a=a[np.newaxis,:, np.newaxis],
+                alt_overest=self.is_ppv,
                 collate=True,
             )
             dcl.append(thres)
 
-            logging.info("%s control_stat %f", self.label, ppv_cusums[-1])
+            logging.info("%s control_stat %f", self.label, pv_cusums[-1])
             logging.info("%s dcl %f", self.label, dcl[-1])
-            fired = ppv_cusums[-1] > dcl[-1]
+            fired = pv_cusums[-1] > dcl[-1]
             if fired and self.halt_when_fired:
                 break
 
-        ppv_cusum_df = pd.DataFrame(
+        pv_cusum_df = pd.DataFrame(
             {
-                "value": np.concatenate([np.array(ppv_cusums), dcl]),
+                "value": np.concatenate([np.array(pv_cusums), dcl]),
                 "actual_iter": np.concatenate(
                     [np.arange(len(dcl)), np.arange(len(dcl))]
                 ),
                 "variable": ["stat"] * len(dcl) + ["dcl"] * len(dcl),
             }
         )
-        ppv_cusum_df["label"] = self.label
-        return ppv_cusum_df
+        pv_cusum_df["label"] = self.label
+        return pv_cusum_df
 
 
 class CUSUM_score(CUSUM):
@@ -423,8 +433,8 @@ class CUSUM_score(CUSUM):
         return subg_weights.reshape((1, 1, -1))/subg_weights.max()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
-        print("Do %s monitor" % self.label)
         self.subg_weights = self._setup(data_gen)
+        print("Do %s monitor" % self.label)
         print("self.subg_weights", self.subg_weights)
 
         self.boot_cumsums = None

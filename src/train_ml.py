@@ -101,9 +101,12 @@ def parse_args():
 def do_evaluate_model(mdl, testX, testY, plot_file: str, prefix: str):
     pred_prob = mdl.predict_proba(testX)[:, 1]
     conf_matrix = confusion_matrix(testY, pred_prob > 0.5)
+    print("conf_matrix", conf_matrix)
+    logging.info("denom %d", (conf_matrix[1, 1] + conf_matrix[0, 1]))
     logging.info(
         "ppv %s %f", prefix, conf_matrix[1, 1] / (conf_matrix[1, 1] + conf_matrix[0, 1])
     )
+    logging.info("denom %d", conf_matrix[0, 0] + conf_matrix[1, 0])
     logging.info(
         "npv %s %f", prefix, conf_matrix[0, 0] / (conf_matrix[0, 0] + conf_matrix[1, 0])
     )
@@ -186,7 +189,10 @@ def main():
 
     # Evaluate the model on source data
     do_evaluate_model(
-        mdl, testX, testY, plot_file=args.plot_source_file, prefix="source"
+        mdl, testX[testX[:,-1] == 0], testY[testX[:,-1] == 0], plot_file=args.plot_source_file, prefix="source"
+    )
+    do_evaluate_model(
+        mdl, testX[testX[:,-1] == 1], testY[testX[:,-1] == 1], plot_file=args.plot_source_file, prefix="source"
     )
 
     # Evaluate the model on biased target data
@@ -197,16 +203,32 @@ def main():
     target_x, target_y, target_a = data_gen.generate(10000, mdl)
     print("target_a", target_a.mean())
     target_testX = np.concatenate([target_x, target_a.reshape((-1, 1))], axis=1)
+    logging.info("biased")
+    do_evaluate_model(
+        mdl, target_testX[target_a.flatten() == 0], target_y[target_a.flatten() == 0], plot_file=args.plot_target_file, prefix="target"
+    )
+    do_evaluate_model(
+        mdl, target_testX[target_a.flatten() == 1], target_y[target_a.flatten() == 1], plot_file=args.plot_target_file, prefix="target"
+    )
+
+
+    # Evaluate the model on unbiased target data
+    logging.info("oracle")
+    data_gen.update_time(1000)
+
+    data_gen.propensity_beta[:] = 0
+    data_gen.propensity_intercept = -10000
+    target_x, target_y, target_a = data_gen.generate(10000)
+    target_testX = np.concatenate([target_x, np.zeros((target_a.size, 1))], axis=1)
     do_evaluate_model(
         mdl, target_testX, target_y, plot_file=args.plot_target_file, prefix="target"
     )
 
-    # Evaluate the model on unbiased target data
-    data_gen.update_time(1000)
-    data_gen.propensity_beta = None
+    data_gen.propensity_beta[:] = 0
+    data_gen.propensity_intercept = 10000
     target_x, target_y, target_a = data_gen.generate(10000)
     print("target_a", target_a.mean())
-    target_testX = np.concatenate([target_x, target_a.reshape((-1, 1))], axis=1)
+    target_testX = np.concatenate([target_x, np.ones((target_a.size, 1))], axis=1)
     do_evaluate_model(
         mdl, target_testX, target_y, plot_file=args.plot_target_file, prefix="target"
     )

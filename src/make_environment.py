@@ -6,7 +6,7 @@ import argparse
 import pandas as pd
 import numpy as np
 
-from data_generator import DataGenerator
+from data_generator import DataGenerator, SmallXShiftDataGenerator
 
 
 def parse_args():
@@ -30,6 +30,7 @@ def parse_args():
         "--propensity-intercept", type=float, default=0, help="propensity intercept"
     )
     parser.add_argument("--intercept", type=float, help="intercept")
+    parser.add_argument("--shift-type", type=str, choices=["none", "small_x_shift"])
     parser.add_argument(
         "--source-beta", type=str, help="comma separated list of coefficients"
     )
@@ -65,15 +66,27 @@ def main():
     logging.info(args)
 
     # TODO: vary the type of data being returned based on data type string
-    dg = DataGenerator(
-        source_beta=args.source_beta,
-        target_beta=args.target_beta,
-        beta_shift_time=args.beta_shift_time,
-        intercept=args.intercept,
-        x_mean=args.x_mean,
-        propensity_beta=args.propensity_beta,
-        propensity_intercept=args.propensity_intercept,
-    )
+    if args.shift_type == "small_x_shift":
+        dg = SmallXShiftDataGenerator(
+            source_beta=args.source_beta,
+            target_beta=args.target_beta,
+            beta_shift_time=args.beta_shift_time,
+            intercept=args.intercept,
+            x_mean=args.x_mean,
+            propensity_beta=args.propensity_beta,
+            propensity_intercept=args.propensity_intercept,
+        )
+    else:
+        dg = DataGenerator(
+            source_beta=args.source_beta,
+            target_beta=args.target_beta,
+            beta_shift_time=args.beta_shift_time,
+            intercept=args.intercept,
+            x_mean=args.x_mean,
+            propensity_beta=args.propensity_beta,
+            propensity_intercept=args.propensity_intercept,
+        )
+    
     # This is just a sanity check
     X, y, A = dg.generate(10)
 

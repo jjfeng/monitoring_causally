@@ -6,7 +6,7 @@ import argparse
 import pandas as pd
 import numpy as np
 
-from data_generator import DataGenerator
+from data_generator import DataGenerator, SmallXShiftDataGenerator
 
 
 def parse_args():
@@ -102,7 +102,7 @@ def main():
 
     # TODO: vary the type of data being returned based on data type string
     if args.shift_type == "small_x_shift":
-        dg = DataGenerator(
+        dg = SmallXShiftDataGenerator(
             source_beta=args.source_beta,
             target_beta=args.target_beta,
             intercept=args.intercept,

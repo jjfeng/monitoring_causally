@@ -13,17 +13,17 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ITERS = 30
-NUM_SEEDS = 8
+NUM_SEEDS = 1
 NUM_VAR = 2
 BATCH_SIZE = 50
 BETA_SHIFT_TIME = 3
 DELTA = 0.02
 ALPHA = 0.1
-PROPENSITY_BETA = '6,0,0'
+PROPENSITY_BETA = '-6,0,0'
 PROPENSITY_INTERCEPT = 0
-INTERCEPT = 0
-SOURCE_BETA = '0,0,0,1.5,-1.5'
-TARGET_BETA = '0,0,0,1,-1'
+INTERCEPT = -0.5
+SOURCE_BETA = '0,0,0,1,-1'
+TARGET_BETA = '0,0,0,1,-0.9'
 X_SOURCE_MEAN = ",".join(["2"] * NUM_VAR)
 
 @nest.add_target_with_env(localenv)
@@ -123,6 +123,8 @@ def make_prechange_environment(env, outdir, c):
         X_SOURCE_MEAN,
         "--propensity-beta=%s" % PROPENSITY_BETA,
         '--propensity-intercept=%.2f' % PROPENSITY_INTERCEPT,
+        '--shift-type',
+        'small_x_shift',
         '--beta-shift-time',
         BETA_SHIFT_TIME,
         '--intercept=%.2f' % INTERCEPT,

@@ -45,7 +45,8 @@ class DataGenerator:
         )
 
     def _get_prob(self, X, A):
-        a_x_xa = np.concatenate([A[:, np.newaxis], X, A[:, np.newaxis] * X], axis=1)
+        interaction = (A[:, np.newaxis] -0.5) * 2 * X
+        a_x_xa = np.concatenate([A[:, np.newaxis], X, interaction], axis=1)
         beta = self.source_beta if not self.is_shifted else self.target_beta
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         return 1 / (1 + np.exp(-logit))
@@ -123,9 +124,10 @@ class DataGenerator:
 
 class SmallXShiftDataGenerator(DataGenerator):
     def _get_prob(self, X, A):
-        a_x_xa = np.concatenate([A[:, np.newaxis], X, A[:, np.newaxis] * X], axis=1)
+        interaction = (A[:, np.newaxis] - 0.5) * 2 * X
+        a_x_xa = np.concatenate([A[:, np.newaxis], X, interaction], axis=1)
         beta = self.source_beta if not self.is_shifted else self.target_beta
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         if self.is_shifted:
-            logit -= 2 * (X[:,:1] < 2) + (X[:,1:2] < 2)
+            logit += 0.5 * (X[:,:1] > 2) + 0.5 * (X[:,1:2] < 2)
         return 1 / (1 + np.exp(-logit))
