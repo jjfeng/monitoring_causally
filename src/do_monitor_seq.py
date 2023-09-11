@@ -95,6 +95,7 @@ def parse_args():
     args.plot_file = args.plot_file_template.replace("JOB", str(args.job_idx))
     return args
 
+GROUP_THRES = 0
 def avg_npv_func(x, a, pred_y_a):
     pred_class = pred_y_a < THRES
     return np.concatenate(
@@ -109,11 +110,11 @@ def subgroup_npv_func(x, a, pred_y_a):
     pred_class = pred_y_a < THRES
     return np.concatenate(
         [
-            (x[:, :1] > 2) * pred_class * (a == 0),
-            (x[:, 1:2] < 2) * pred_class * (a == 0),
+            (x[:, :1] > GROUP_THRES) * pred_class * (a == 0),
+            (x[:, 1:2] < GROUP_THRES) * pred_class * (a == 0),
             pred_class * (a == 0),
-            (x[:, :1] > 2) * pred_class * (a == 1),
-            (x[:, 1:2] < 2) * pred_class * (a == 1),
+            (x[:, :1] > GROUP_THRES) * pred_class * (a == 1),
+            (x[:, 1:2] < GROUP_THRES) * pred_class * (a == 1),
             pred_class * (a == 1),
         ],
         axis=1,
@@ -124,15 +125,15 @@ def score_under_subgroup_func(x, pred_y_a, a, propensity_inputs):
     pred_class = pred_y_a < THRES
     return np.concatenate(
         [
-            (x[:, :1] > 2) * pred_class,
-            (x[:, 1:2] < 2) * pred_class,
-            pred_class,
-            # (x[:, :1] > 2) * pred_class * (a == 0),
-            # (x[:, 1:2] < 2) * pred_class * (a == 0),
-            # pred_class * (a == 0),
-            # (x[:, :1] > 2) * pred_class * (a == 1),
-            # (x[:, 1:2] < 2) * pred_class * (a == 1),
-            # pred_class * (a == 1),
+            # (x[:, :1] > GROUP_THRES) * pred_class,
+            # (x[:, 1:2] < GROUP_THRES) * pred_class,
+            # pred_class,
+            (x[:, :1] > GROUP_THRES) * pred_class * (a == 0),
+            (x[:, 1:2] < GROUP_THRES) * pred_class * (a == 0),
+            pred_class * (a == 0),
+            (x[:, :1] > GROUP_THRES) * pred_class * (a == 1),
+            (x[:, 1:2] < GROUP_THRES) * pred_class * (a == 1),
+            pred_class * (a == 1),
         ],
         axis=1,
     )
@@ -155,7 +156,7 @@ def main():
     expected_vals = pd.Series({"ppv": 0.66, "npv": 0.8})
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
 
-        # # WCUSUM avg, no intervention, oracle propensity model
+    # # WCUSUM avg, no intervention, oracle propensity model
     np.random.seed(seed)
     wcusum = wCUSUM(
         mdl,

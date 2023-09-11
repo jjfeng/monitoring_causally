@@ -12,18 +12,18 @@ localenv = env.Clone()
 # Set up state
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
-NUM_ITERS = 30
-NUM_SEEDS = 3
+NUM_ITERS = 40
+NUM_SEEDS = 1
 NUM_VAR = 2
 BATCH_SIZE = 50
 BETA_SHIFT_TIME = 3
 DELTA = 0.02
 ALPHA = 0.1
-PROPENSITY_BETA = '-6,0,0'
+PROPENSITY_BETA = '-3,0,0'
 PROPENSITY_INTERCEPT = 0
 INTERCEPT = -0.5
 SOURCE_BETA = '0,0,0,2,-2'
-TARGET_BETA = '0,0,0,2,-2'
+TARGET_BETA = '0,0,0,2,-1.8'
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 
 @nest.add_target_with_env(localenv)

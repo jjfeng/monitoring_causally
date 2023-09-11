@@ -243,7 +243,7 @@ class wCUSUM(CUSUM):
             oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
                 (1, -1, 1)
             )
-            print("oracle_propensity", np.quantile(oracle_propensity, [0.001,0.002,0.004,0.008]))
+            print("oracle_propensity", np.quantile(oracle_propensity, [0.001,0.01,0.1]))
             assert np.max(oracle_propensity) < 1 and np.min(oracle_propensity) > 0
             oracle_weight = 1 / oracle_propensity
             
