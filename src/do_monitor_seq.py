@@ -10,9 +10,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-from common import get_n_jobs, read_csv, to_safe_prob
-
 from cusums import CUSUM, CUSUM_naive, wCUSUM, CUSUM_score
+from common import get_n_jobs, read_csv, to_safe_prob
+from subgroups import *
 
 THRES = 0.5
 
@@ -74,6 +74,11 @@ def parse_args():
         default="_output/mdlJOB.pkl",
     )
     parser.add_argument(
+        "--perf-targets-csv",
+        type=str,
+        default="_output/mdl_perf.csv",
+    )
+    parser.add_argument(
         "--out-file",
         type=str,
         default="_output/out.csv",
@@ -95,76 +100,34 @@ def parse_args():
     args.plot_file = args.plot_file_template.replace("JOB", str(args.job_idx))
     return args
 
-GROUP_THRES = 0
-def avg_npv_func(x, a, pred_y_a):
-    pred_class = pred_y_a < THRES
-    return np.concatenate(
-        [
-            pred_class * (a == 0),
-            pred_class * (a == 1),
-        ],
-        axis=1,
-    )
-
-def subgroup_npv_func(x, a, pred_y_a):
-    pred_class = pred_y_a < THRES
-    return np.concatenate(
-        [
-            (x[:, :1] > GROUP_THRES) * pred_class * (a == 0),
-            (x[:, 1:2] < GROUP_THRES) * pred_class * (a == 0),
-            pred_class * (a == 0),
-            (x[:, :1] > GROUP_THRES) * pred_class * (a == 1),
-            (x[:, 1:2] < GROUP_THRES) * pred_class * (a == 1),
-            pred_class * (a == 1),
-        ],
-        axis=1,
-    )
-
-
-def score_under_subgroup_func(x, pred_y_a, a, propensity_inputs):
-    pred_class = pred_y_a < THRES
-    return np.concatenate(
-        [
-            # (x[:, :1] > GROUP_THRES) * pred_class,
-            # (x[:, 1:2] < GROUP_THRES) * pred_class,
-            # pred_class,
-            (x[:, :1] > GROUP_THRES) * pred_class * (a == 0),
-            (x[:, 1:2] < GROUP_THRES) * pred_class * (a == 0),
-            pred_class * (a == 0),
-            (x[:, :1] > GROUP_THRES) * pred_class * (a == 1),
-            (x[:, 1:2] < GROUP_THRES) * pred_class * (a == 1),
-            pred_class * (a == 1),
-        ],
-        axis=1,
-    )
-
-
 def main():
     args = parse_args()
     seed = args.seed_offset + args.job_idx
+    np.random.seed(seed)
     logging.basicConfig(
         format="%(message)s", filename=args.log_file, level=logging.INFO
     )
     logging.info(args)
-
+    logging.info("SEED %d", seed)
+    
     with open(args.data_gen_file, "rb") as f:
         data_gen = pickle.load(f)
-        data_gen.seed_offset = seed
+        data_gen.iter_seeds = np.random.randint(0, high=100000, size=args.num_iters)
     with open(args.mdl_file, "rb") as f:
         mdl = pickle.load(f)
+    perf_targets_df = pd.read_csv(args.perf_targets_csv)
+    perf_targets_df['value'] = perf_targets_df.value - args.delta
+    print("perf_targets", perf_targets_df)
 
-    expected_vals = pd.Series({"ppv": 0.66, "npv": 0.85})
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
     
     # SCORE
-    np.random.seed(seed)
     score_cusum = CUSUM_score(
         mdl,
         threshold=THRES,
-        expected_vals=expected_vals,
         batch_size=args.batch_size,
         alpha_spending_func=alpha_spending_func,
-        subgroup_func=score_under_subgroup_func,
+        subgroup_func=subgroup_npv_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
         alt_overest=False, # check if we underestimated
@@ -177,16 +140,16 @@ def main():
     )
 
     # WCUSUM with subgroups, no intervention, oracle propensity model
-    np.random.seed(seed)
     wcusum_subg = wCUSUM(
         mdl,
         threshold=THRES,
-        expected_vals=expected_vals,
+        perf_targets_df=perf_targets_df,
         batch_size=args.batch_size,
         alpha_spending_func=alpha_spending_func,
         subgroup_func=subgroup_npv_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
+        metric="npv"
     )
     wcusum_subg_res_df = wcusum_subg.do_monitor(
         num_iters=args.num_iters, data_gen=data_gen
@@ -195,15 +158,42 @@ def main():
         "wcusum_subg fired? %s", CUSUM.is_fired_alarm(wcusum_subg_res_df)
     )
 
+    # # WCUSUM avg, no intervention, oracle propensity model
+    wcusum = wCUSUM(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
+        subgroup_func=avg_npv_func,
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))
+
+    # Naive CUSUM
+    cusum = CUSUM_naive(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        metric="npv",
+    )
+    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
+
     # WCUSUM with Intervention
-    np.random.seed(seed)
     propensity_beta_intervene = np.zeros(data_gen.propensity_beta.shape)
     propensity_beta_intervene[0] = 0
     wcusum_int = wCUSUM(
         mdl,
         threshold=THRES,
         batch_size=args.batch_size,
-        expected_vals=expected_vals,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
         propensity_beta=propensity_beta_intervene,
         subgroup_func=avg_npv_func,
         alpha_spending_func=alpha_spending_func,
@@ -214,37 +204,7 @@ def main():
         num_iters=args.num_iters, data_gen=data_gen
     )
     logging.info("wcusum_int fired? %s", CUSUM.is_fired_alarm(wcusum_int_res_df))
-    
-    # # WCUSUM avg, no intervention, oracle propensity model
-    np.random.seed(seed)
-    wcusum = wCUSUM(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        expected_vals=expected_vals,
-        subgroup_func=avg_npv_func,
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-    )
-    wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))
-
-    # Naive CUSUM
-    np.random.seed(seed)
-    cusum = CUSUM_naive(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        expected_vals=expected_vals,
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-        metric="npv",
-    )
-    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
-
+        
     res_df = pd.concat(
         [
             cusum_res_df,

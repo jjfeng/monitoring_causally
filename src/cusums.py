@@ -65,7 +65,7 @@ class CUSUM:
             * (1 - self.alpha_spending_func(eff_count))
             / self.boot_cumsums.shape[0]
         )
-        print("quantile", quantile, eff_count, np.max(boot_cusums), self.alpha_spending_func(eff_count))
+        # print("quantile", quantile, eff_count, np.max(boot_cusums), self.alpha_spending_func(eff_count))
         if quantile < 1:
             thres = np.quantile(
                 boot_cusums,
@@ -88,7 +88,7 @@ class CUSUM_naive(CUSUM):
         self,
         mdl,
         threshold: float,
-        expected_vals: pd.Series,
+        perf_targets_df: pd.DataFrame,
         alpha_spending_func,
         batch_size: int = 1,
         n_bootstrap: int = 1000,
@@ -99,7 +99,8 @@ class CUSUM_naive(CUSUM):
         self.mdl = mdl
         self.threshold = threshold
         self.batch_size = batch_size
-        self.expected_vals = expected_vals
+        self.perf_targets = perf_targets_df.value[perf_targets_df.metric == metric].to_numpy().reshape((1,1,-1))
+        print("self.perf_targets", self.perf_targets)
         self.alpha_spending_func = alpha_spending_func
         self.n_bootstrap = n_bootstrap
         self.delta = delta
@@ -111,10 +112,11 @@ class CUSUM_naive(CUSUM):
     def _get_iter_stat(self, y, **kwargs):
         pred_class = kwargs["pred_class"]
         pred_mask = pred_class == self.class_mtr
+        # TODO: replace with subgroup function
         a_mask = np.concatenate([
             kwargs["a"] == 0,
             kwargs["a"] == 1], axis=2)
-        iter_stats = (self.expected_vals[self.metric] - (y == pred_class)) * pred_mask * a_mask
+        iter_stats = (self.perf_targets - (y == pred_class)) * pred_mask * a_mask
         return np.sum(iter_stats, axis=1, keepdims=True), pred_mask.sum()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
@@ -189,7 +191,7 @@ class wCUSUM(CUSUM):
         self,
         mdl,
         threshold: float,
-        expected_vals: pd.Series,
+        perf_targets_df: pd.DataFrame,
         alpha_spending_func,
         propensity_beta: np.ndarray = None,
         propensity_intercept: float = 0,
@@ -203,7 +205,8 @@ class wCUSUM(CUSUM):
         self.mdl = mdl
         self.threshold = threshold
         self.batch_size = batch_size
-        self.expected_vals = expected_vals
+        self.perf_targets = perf_targets_df.value[perf_targets_df.metric == metric].to_numpy().reshape((1,1,-1))
+        print("self.perf_targets", self.perf_targets)
         self.alpha_spending_func = alpha_spending_func
         self.propensity_beta = propensity_beta
         self.propensity_intercept = propensity_intercept
@@ -257,7 +260,7 @@ class wCUSUM(CUSUM):
             )[0]
             iter_ppv_stats = iter_ppv_stats[pred_class.flatten() == self.class_mtr]
             subg_var_ests = np.var(iter_ppv_stats, axis=0)
-            print("subg_var_ests", subg_var_ests)
+            print(data_gen.propensity_beta, "subg_var_ests", subg_var_ests)
             subg_weights = 1 / np.sqrt(subg_var_ests)
             subg_weights[np.isinf(subg_weights)] = 0
         return data_gen, subg_weights.reshape((1, 1, -1))
@@ -266,7 +269,7 @@ class wCUSUM(CUSUM):
         pred_class = kwargs["pred_class"]
         pred_mask = pred_class == self.class_mtr
         iter_stats = (
-            (self.expected_vals[self.metric] - (y == kwargs["pred_class"]))
+            (self.perf_targets - (y == kwargs["pred_class"]))
             * kwargs["oracle_weight"]
             * kwargs["h"]
             * self.subg_weights
@@ -279,6 +282,7 @@ class wCUSUM(CUSUM):
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         data_gen, self.subg_weights = self._setup(data_gen)
         print("Do %s monitor" % self.label)
+        logging.info("self.subg_weights %s", self.subg_weights)
         
         pv_count = 0
         self.boot_cumsums = None
@@ -304,6 +308,9 @@ class wCUSUM(CUSUM):
             )
             oracle_weight = 1 / oracle_propensity
             # print("weight", oracle_weight, h.shape, self.subg_weights)
+            # plt.hist(oracle_propensity.flatten())
+            # plt.show()
+            # 1/0
 
             iter_pv_stat, pv_incr = self._get_iter_stat(
                 y.reshape((1, -1, 1)),
@@ -368,7 +375,6 @@ class CUSUM_score(CUSUM):
         self,
         mdl,
         threshold: float,
-        expected_vals: pd.Series,
         alpha_spending_func,
         subgroup_func,
         batch_size: int = 1,
@@ -380,7 +386,6 @@ class CUSUM_score(CUSUM):
         self.mdl = mdl
         self.threshold = threshold
         self.batch_size = batch_size
-        self.expected_vals = expected_vals
         self.alpha_spending_func = alpha_spending_func
         self.subgroup_func = subgroup_func
         self.n_bootstrap = n_bootstrap
@@ -402,6 +407,9 @@ class CUSUM_score(CUSUM):
         num_nonzero = (np.sum(kwargs["h"], axis=2) > 0).sum()
         print("num_nonzero", num_nonzero)
         if kwargs['collate']:
+            if iter_stats.shape[0] == 1:
+                print(self.subg_weights)
+                print('ITER MEAN', np.sum(iter_stats, axis=1, keepdims=True)/np.sum(kwargs["h"], axis=1, keepdims=True))
             return np.sum(iter_stats, axis=1, keepdims=True), num_nonzero
         else:
             return iter_stats, num_nonzero
@@ -412,13 +420,13 @@ class CUSUM_score(CUSUM):
         # TOOO: do not use oracle for variance
         data_gen = copy.deepcopy(data_gen)
         data_gen.propensity_beta = None
+        data_gen.curr_time = 123123
         x, y, a = data_gen.generate(self.n_bootstrap, mdl=None)
-        propensity_inputs = data_gen._get_propensity_inputs(x, self.mdl)
         pred_y_a = self.mdl.predict_proba(
             np.concatenate([x, a[:, np.newaxis]], axis=1)
         )[:, 1].reshape((1, -1, 1))
         h = self.subgroup_func(
-            x, pred_y_a.reshape((-1, 1)), a.reshape((-1, 1)), propensity_inputs
+            x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1))
         )
 
         iter_score_stats = self._get_iter_stat(
@@ -444,12 +452,11 @@ class CUSUM_score(CUSUM):
             data_gen.update_time(i, set_seed=True)
             print("iter", i)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
-            propensity_inputs = data_gen._get_propensity_inputs(x, self.mdl)
             pred_y_a = self.mdl.predict_proba(
                 np.concatenate([x, a[:, np.newaxis]], axis=1)
             )[:, 1].reshape((1, -1, 1))
             h = self.subgroup_func(
-                x, pred_y_a.reshape((-1, 1)), a.reshape((-1, 1)), propensity_inputs
+                x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)),
             )
             assert np.all(h >= 0)
 

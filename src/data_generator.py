@@ -17,7 +17,7 @@ class DataGenerator:
         propensity_beta: np.ndarray = None,
         propensity_intercept: float =0,
         beta_shift_time: int = None,
-        seed_offset: int = 0,
+        iter_seeds: np.ndarray= None,
     ):
         self.source_beta = source_beta
         self.target_beta = target_beta
@@ -28,13 +28,13 @@ class DataGenerator:
         assert x_mean.size == self.num_p
         self.propensity_beta = propensity_beta
         self.propensity_intercept = propensity_intercept
-        self.seed_offset = seed_offset
         self.curr_time = 0
+        self.iter_seeds = iter_seeds
 
     def update_time(self, curr_time: int, set_seed: bool = False):
         self.curr_time = curr_time
-        if set_seed:
-            np.random.seed(curr_time + self.seed_offset)
+        if set_seed and self.iter_seeds is not None:
+            np.random.seed(self.iter_seeds[curr_time])
 
     @property
     def is_shifted(self):
@@ -60,7 +60,7 @@ class DataGenerator:
                 np.concatenate([X, np.ones((X.shape[0], 1))], axis=1)
             )[:, 1:]
             mdl_pred_diff = mdl_pred_prob_a1 - mdl_pred_prob_a0
-            print("mdl_pred_diff", np.quantile(np.abs(mdl_pred_diff), [0.1,0.2,0.3,0.7,0.8,0.9]))
+            # print("mdl_pred_diff", np.quantile(np.abs(mdl_pred_diff), [0.1,0.2,0.3,0.7,0.8,0.9]))
             # plt.clf()
             # plt.hist(mdl_pred_diff)
             # plt.show()
@@ -112,8 +112,8 @@ class DataGenerator:
         return y
 
     def _generate_A(self, X, mdl=None):
-        treatments = self._get_propensity(X, mdl)
-        A = np.random.binomial(1, treatments.flatten(), size=treatments.size)
+        treatment_probs = self._get_propensity(X, mdl).flatten()
+        A = np.random.binomial(1, treatment_probs, size=treatment_probs.size)
         return A
 
     def generate(self, num_obs, mdl=None):
@@ -128,6 +128,12 @@ class SmallXShiftDataGenerator(DataGenerator):
         a_x_xa = np.concatenate([A[:, np.newaxis], X, interaction], axis=1)
         beta = self.source_beta if not self.is_shifted else self.target_beta
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
+        prob = 1 / (1 + np.exp(-logit))
         if self.is_shifted:
-            logit += 0.5 * (X[:,:1] > 0) + 0.5 * (X[:,1:2] < 0)
-        return 1 / (1 + np.exp(-logit))
+            delta_prob = 0.1 * ((np.abs(X[:,:1]) < 1) | (np.abs(X[:,1:2]) < 1)) * (1 - A[:,np.newaxis])
+            prob = to_safe_prob(
+                prob + delta_prob,
+                eps=0
+            )
+        return prob
+        

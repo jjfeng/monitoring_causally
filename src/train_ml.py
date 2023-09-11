@@ -17,6 +17,8 @@ from sklearn.metrics import confusion_matrix
 
 from matplotlib import pyplot as plt
 
+from subgroups import *
+from cusums import *
 from common import get_n_jobs, read_csv
 
 
@@ -69,6 +71,11 @@ def parse_args():
         default="_output/mdlJOB.pkl",
     )
     parser.add_argument(
+        "--perf-csv",
+        type=str,
+        default="_output/mdl_perf.csv",
+    )
+    parser.add_argument(
         "--log-file-template",
         type=str,
         default="_output/logJOB.txt",
@@ -98,9 +105,9 @@ def parse_args():
     return args
 
 
-def do_evaluate_model(mdl, testX, testY, plot_file: str, prefix: str):
+def do_evaluate_model(mdl, testX, testY, plot_file: str = None, prefix: str = None):
     pred_prob = mdl.predict_proba(testX)[:, 1]
-    conf_matrix = confusion_matrix(testY, pred_prob > 0.5)
+    conf_matrix = confusion_matrix(testY.astype(int), (pred_prob > 0.5).astype(int))
     print("conf_matrix", conf_matrix)
     logging.info("denom %d", (conf_matrix[1, 1] + conf_matrix[0, 1]))
     logging.info(
@@ -117,9 +124,24 @@ def do_evaluate_model(mdl, testX, testY, plot_file: str, prefix: str):
         "npv %s %f", prefix, conf_matrix[0, 0] / (conf_matrix[0, 0] + conf_matrix[1, 0])
     )
 
-    RocCurveDisplay.from_estimator(mdl, testX, testY)
-    plt.savefig(plot_file)
-    print(plot_file)
+    if plot_file is not None:
+        RocCurveDisplay.from_estimator(mdl, testX, testY)
+        plt.savefig(plot_file)
+        print(plot_file)
+
+def do_evaluate_subgroup_npv(mdl, testX, testY, out_file: str = None):
+    pred_prob = mdl.predict_proba(testX)[:, 1]
+    h = subgroup_npv_func(testX[:,:-1], testX[:,-1:], pred_prob.reshape((-1,1)))
+    npvs = np.sum((testY[:,np.newaxis] == 0) * h, axis=0)/np.sum(h, axis=0)
+    print("subgroup size", np.sum(h, axis=0))
+    res = pd.DataFrame({
+        "h_idx": np.arange(h.shape[1]),
+        "value": npvs,
+    })
+    res["metric"] = "npv"
+    logging.info(res)
+    if out_file:
+        res.to_csv(out_file, index=False)
 
 
 def main():
@@ -133,7 +155,7 @@ def main():
     # Generate training data
     X, y = read_csv(args.train_dataset_file, read_A=False)
     trainX, testX, trainY, testY = train_test_split(
-        X.to_numpy(), y, test_size=args.train_frac
+        X.to_numpy(), y.to_numpy(), test_size=args.train_frac
     )
 
     with open(args.param_dict_file, "r") as f:
@@ -194,45 +216,33 @@ def main():
     do_evaluate_model(
         mdl, testX[testX[:,-1] == 1], testY[testX[:,-1] == 1], plot_file=args.plot_source_file, prefix="source"
     )
+    do_evaluate_subgroup_npv(mdl, testX, testY)
 
     # Evaluate the model on biased target data
     with open(args.data_gen_file, "rb") as f:
         data_gen = pickle.load(f)
+    NOBS = 10000
+    data_gen.seed_offset = 123412
+
     data_gen.update_time(1000)
-    print(data_gen.propensity_beta)
-    target_x, target_y, target_a = data_gen.generate(10000, mdl)
-    print("target_a", target_a.mean())
+    target_x, target_y, target_a = data_gen.generate(NOBS, mdl)
     target_testX = np.concatenate([target_x, target_a.reshape((-1, 1))], axis=1)
-    logging.info("biased")
-    do_evaluate_model(
-        mdl, target_testX[target_a.flatten() == 0], target_y[target_a.flatten() == 0], plot_file=args.plot_target_file, prefix="target"
-    )
-    do_evaluate_model(
-        mdl, target_testX[target_a.flatten() == 1], target_y[target_a.flatten() == 1], plot_file=args.plot_target_file, prefix="target"
-    )
+    logging.info("biased post")
+    do_evaluate_subgroup_npv(mdl, target_testX, target_y)
 
 
     # Evaluate the model on unbiased target data
-    logging.info("oracle")
-    data_gen.update_time(1000)
-
-    data_gen.propensity_beta[:] = 0
-    data_gen.propensity_intercept = -10000
-    target_x, target_y, target_a = data_gen.generate(10000)
-    target_testX = np.concatenate([target_x, np.zeros((target_a.size, 1))], axis=1)
-    do_evaluate_model(
-        mdl, target_testX, target_y, plot_file=args.plot_target_file, prefix="target"
-    )
-
-    data_gen.propensity_beta[:] = 0
-    data_gen.propensity_intercept = 10000
-    target_x, target_y, target_a = data_gen.generate(10000)
-    print("target_a", target_a.mean())
-    target_testX = np.concatenate([target_x, np.ones((target_a.size, 1))], axis=1)
-    do_evaluate_model(
-        mdl, target_testX, target_y, plot_file=args.plot_target_file, prefix="target"
-    )
-
-
+    logging.info("oracle pre")
+    data_gen.update_time(0, set_seed=True)
+    target_x, target_y, target_a = data_gen.generate(NOBS)
+    target_testX = np.concatenate([target_x, target_a.reshape((-1, 1))], axis=1)
+    do_evaluate_subgroup_npv(mdl, target_testX, target_y, args.perf_csv)
+    
+    logging.info("oracle post")
+    data_gen.update_time(10000, set_seed=True)
+    target_x, target_y, target_a = data_gen.generate(NOBS)
+    target_testX = np.concatenate([target_x, target_a.reshape((-1, 1))], axis=1)
+    do_evaluate_subgroup_npv(mdl, target_testX, target_y)
+    
 if __name__ == "__main__":
     main()

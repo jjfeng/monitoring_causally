@@ -38,6 +38,9 @@ def parse_args():
         "--target-beta", type=str, help="comma separated list of coefficients"
     )
     parser.add_argument(
+        "--beta-shift-time", type=int, help="shift time"
+    )
+    parser.add_argument(
         "--propensity-beta", type=str, help="comma separated list of coefficients"
     )
     parser.add_argument(
@@ -107,14 +110,15 @@ def main():
             target_beta=args.target_beta,
             intercept=args.intercept,
             x_mean=args.x_mean,
-            beta_shift_time=1)
+            beta_shift_time=args.beta_shift_time)
     else:
         dg = DataGenerator(
             source_beta=args.source_beta,
             target_beta=args.target_beta,
             intercept=args.intercept,
             x_mean=args.x_mean,
-            beta_shift_time=1)
+            beta_shift_time=args.beta_shift_time)
+    dg.update_time(0, set_seed=True)
     output_data(dg, args, args.out_source_file)
 
     if args.out_data_gen_file:
@@ -123,9 +127,6 @@ def main():
         with open(args.out_data_gen_file, "wb") as f:
             pickle.dump(dg, f)
 
-    dg.update_time(2)
-    output_data(dg, args, args.out_target_file)
-
-
+    
 if __name__ == "__main__":
     main()
