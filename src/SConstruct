@@ -22,5 +22,8 @@ sc.Export('env')
 
 env.SConsignFile()
 
-flag = 'simulation'
+flag = 'simulation_estimands'
 sc.SConscript(flag + '/sconscript', exports=['flag'])
+
+# flag = 'simulation_refit'
+# sc.SConscript(flag + '/sconscript', exports=['flag'])
