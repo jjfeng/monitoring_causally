@@ -124,12 +124,15 @@ def score_under_subgroup_func(x, pred_y_a, a, propensity_inputs):
     pred_class = pred_y_a < THRES
     return np.concatenate(
         [
-            (x[:, :1] > 2) * pred_class * (a == 0),
-            (x[:, 1:2] < 2) * pred_class * (a == 0),
-            pred_class * (a == 0),
-            (x[:, :1] > 2) * pred_class * (a == 1),
-            (x[:, 1:2] < 2) * pred_class * (a == 1),
-            pred_class * (a == 1),
+            (x[:, :1] > 2) * pred_class,
+            (x[:, 1:2] < 2) * pred_class,
+            pred_class,
+            # (x[:, :1] > 2) * pred_class * (a == 0),
+            # (x[:, 1:2] < 2) * pred_class * (a == 0),
+            # pred_class * (a == 0),
+            # (x[:, :1] > 2) * pred_class * (a == 1),
+            # (x[:, 1:2] < 2) * pred_class * (a == 1),
+            # pred_class * (a == 1),
         ],
         axis=1,
     )
@@ -151,6 +154,21 @@ def main():
 
     expected_vals = pd.Series({"ppv": 0.66, "npv": 0.8})
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
+
+        # # WCUSUM avg, no intervention, oracle propensity model
+    np.random.seed(seed)
+    wcusum = wCUSUM(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        expected_vals=expected_vals,
+        subgroup_func=avg_npv_func,
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))
 
     # Naive CUSUM
     np.random.seed(seed)
@@ -225,22 +243,6 @@ def main():
     logging.info(
         "wcusum_subg fired? %s", CUSUM.is_fired_alarm(wcusum_subg_res_df)
     )
-
-    
-    # # WCUSUM avg, no intervention, oracle propensity model
-    np.random.seed(seed)
-    wcusum = wCUSUM(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        expected_vals=expected_vals,
-        subgroup_func=avg_npv_func,
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-    )
-    wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))
 
     res_df = pd.concat(
         [

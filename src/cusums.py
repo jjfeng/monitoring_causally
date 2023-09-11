@@ -51,13 +51,11 @@ class CUSUM:
             else (self.n_bootstrap, pred_y_a.size),
         )
         boot_iter_stat, _ = self._get_iter_stat(boot_ys[:, :, np.newaxis], **kwargs)
-        print("boot_iter_stat", boot_iter_stat.shape)
         self.boot_cumsums = (
             np.concatenate([self.boot_cumsums + boot_iter_stat, boot_iter_stat], axis=1)
             if self.boot_cumsums is not None
             else boot_iter_stat
         )
-        print(self.boot_cumsums.shape)
         boot_cusums = np.maximum(np.max(np.max(self.boot_cumsums, axis=1), axis=1), 0)
         # plt.hist(boot_cusums)
         # plt.show()
@@ -245,9 +243,10 @@ class wCUSUM(CUSUM):
             oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
                 (1, -1, 1)
             )
+            print("oracle_propensity", np.quantile(oracle_propensity, [0.001,0.002,0.004,0.008]))
             assert np.max(oracle_propensity) < 1 and np.min(oracle_propensity) > 0
             oracle_weight = 1 / oracle_propensity
-
+            
             iter_ppv_stats = self._get_iter_stat(
                 y.reshape((1, -1, 1)),
                 pred_class=pred_class,
@@ -258,6 +257,7 @@ class wCUSUM(CUSUM):
             )[0]
             iter_ppv_stats = iter_ppv_stats[pred_class.flatten() == self.class_mtr]
             subg_var_ests = np.var(iter_ppv_stats, axis=0)
+            print("subg_var_ests", subg_var_ests)
             subg_weights = 1 / np.sqrt(subg_var_ests)
             subg_weights[np.isinf(subg_weights)] = 0
         return data_gen, subg_weights.reshape((1, 1, -1))
@@ -313,7 +313,6 @@ class wCUSUM(CUSUM):
                 a=a[np.newaxis,:, np.newaxis],
                 collate=True,
             )
-            print("iter_pv_stat", iter_pv_stat.shape)
             pv_count += pv_incr
             pv_cumsums = (
                 np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
@@ -425,7 +424,6 @@ class CUSUM_score(CUSUM):
         iter_score_stats = self._get_iter_stat(
             y.reshape((1, -1, 1)), mdl_pred=pred_y_a, h=h[np.newaxis, :, :], collate=False,
         )[0]
-        print("iter_score_stats", iter_score_stats.shape)
         subg_var_ests = np.var(iter_score_stats, axis=1)
         print("subg_var_ests", subg_var_ests)
         subg_weights = 1 / np.sqrt(subg_var_ests)
@@ -465,7 +463,6 @@ class CUSUM_score(CUSUM):
                 if score_cumsums is not None
                 else iter_score
             )
-            print("score_cumsums", score_cumsums.shape)
             score_cusums.append(max(np.max(score_cumsums), 0))
             logging.info(
                 "score estimate %s", score_cumsums[0] / self.batch_size / (i + 1)

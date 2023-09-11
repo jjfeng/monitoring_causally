@@ -60,6 +60,10 @@ class DataGenerator:
                 np.concatenate([X, np.ones((X.shape[0], 1))], axis=1)
             )[:, 1:]
             mdl_pred_diff = mdl_pred_prob_a1 - mdl_pred_prob_a0
+            print("mdl_pred_diff", np.quantile(np.abs(mdl_pred_diff), [0.1,0.2,0.3,0.7,0.8,0.9]))
+            # plt.clf()
+            # plt.hist(mdl_pred_diff)
+            # plt.show()
         else:
             mdl_pred_diff = np.zeros((X.shape[0], 1))
         X_aug = np.concatenate([mdl_pred_diff, X], axis=1)
@@ -75,20 +79,20 @@ class DataGenerator:
                 + self.propensity_intercept
             )
             propensity = 1 / (1 + np.exp(-logit))
-            if mdl is not None and X_aug.shape[0] > 100:
-                mdl_pred = mdl.predict_proba(
-                    np.concatenate([X, np.ones((X.shape[0], 1))], axis=1)
-                )[:, 1]
-                propensity_pos = propensity[mdl_pred > 0.5]
-                print(
-                    "propensity",
-                    np.sqrt(np.var(propensity_pos)),
-                    np.min(propensity_pos),
-                    np.max(propensity_pos),
-                )
-                # plt.clf()
-                # plt.hist(propensity_pos)
-                # plt.show()
+            # if mdl is not None:
+            #     mdl_pred = mdl.predict_proba(
+            #         np.concatenate([X, np.zeros((X.shape[0], 1))], axis=1)
+            #     )[:, 1]
+            #     propensity_pos = propensity[mdl_pred < 0.5]
+            #     print(
+            #         "propensity",
+            #         np.sqrt(np.var(propensity_pos)),
+            #         np.min(propensity_pos),
+            #         np.max(propensity_pos),
+            #     )
+            #     plt.clf()
+            #     plt.hist(propensity_pos)
+            #     plt.show()
             return propensity
 
     def _generate_X(self, num_obs):
@@ -129,5 +133,5 @@ class SmallXShiftDataGenerator(DataGenerator):
         beta = self.source_beta if not self.is_shifted else self.target_beta
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         if self.is_shifted:
-            logit += 0.5 * (X[:,:1] > 2) + 0.5 * (X[:,1:2] < 2)
+            logit += 0.5 * (X[:,:1] > 2) + 0.25 * (X[:,1:2] < 2)
         return 1 / (1 + np.exp(-logit))
