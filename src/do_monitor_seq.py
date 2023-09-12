@@ -117,19 +117,18 @@ def main():
     print("perf_targets", perf_targets_df)
 
     # All interventions assigned A=0 to optimize monitoring...
-    alpha_spending_func_intervene = lambda eff_count: min(1, args.alpha * 2 / args.num_iters / args.batch_size * eff_count)
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
 
     # WCUSUM with Intervention
     intervene_beta = np.zeros(data_gen.propensity_beta.shape)
-    intervene_beta[0] = -1
+    intervene_beta[0] = -2
     wcusum_int = wCUSUM(
         mdl,
         threshold=THRES,
         batch_size=args.batch_size,
         perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
         propensity_beta=intervene_beta,
-        propensity_intercept=0,
+        propensity_intercept=-1,
         subgroup_func=avg_npv_func,
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
