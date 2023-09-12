@@ -447,7 +447,7 @@ class CUSUM_score(CUSUM):
         score_cumsums = None
         score_cusums = []
         dcl = []
-        ppv_count = 0
+        score_count = 0
         for i in range(num_iters):
             data_gen.update_time(i, set_seed=True)
             print("iter", i)
@@ -460,10 +460,10 @@ class CUSUM_score(CUSUM):
             )
             assert np.all(h >= 0)
 
-            iter_score, ppv_incr = self._get_iter_stat(
+            iter_score, score_incr = self._get_iter_stat(
                 y.reshape((1, -1, 1)), mdl_pred=pred_y_a, h=h[np.newaxis, :, :], collate=True
             )
-            ppv_count += ppv_incr
+            score_count += score_incr
 
             score_cumsums = (
                 np.concatenate([score_cumsums + iter_score, iter_score])
@@ -477,7 +477,7 @@ class CUSUM_score(CUSUM):
 
             thres = self.do_bootstrap_update(
                 pred_y_a,
-                eff_count=ppv_count,
+                eff_count=score_count,
                 alt_overest=self.alt_overest,
                 h=h[np.newaxis, :, :],
                 mdl_pred=pred_y_a,

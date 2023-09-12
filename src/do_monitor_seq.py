@@ -16,9 +16,6 @@ from subgroups import *
 
 THRES = 0.5
 
-# TODO: unify data generation so they do not differ
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="monittor a ML algorithm")
     parser.add_argument(
@@ -119,7 +116,29 @@ def main():
     perf_targets_df['value'] = perf_targets_df.value - args.delta
     print("perf_targets", perf_targets_df)
 
+    # All interventions assigned A=0 to optimize monitoring...
+    # alpha_spending_func_intervene = lambda eff_count: min(1, args.alpha * 2 / args.num_iters / args.batch_size * eff_count)
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
+
+    # WCUSUM with Intervention
+    intervene_beta = np.zeros(data_gen.propensity_beta.shape)
+    intervene_beta[0] = -1
+    wcusum_int = wCUSUM(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
+        propensity_beta=intervene_beta,
+        propensity_intercept=0,
+        subgroup_func=avg_npv_func,
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    wcusum_int_res_df = wcusum_int.do_monitor(
+        num_iters=args.num_iters, data_gen=data_gen
+    )
+    logging.info("wcusum_int fired? %s", CUSUM.is_fired_alarm(wcusum_int_res_df))
     
     # SCORE
     score_cusum = CUSUM_score(
@@ -185,26 +204,7 @@ def main():
     )
     cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
-
-    # WCUSUM with Intervention
-    propensity_beta_intervene = np.zeros(data_gen.propensity_beta.shape)
-    propensity_beta_intervene[0] = 0
-    wcusum_int = wCUSUM(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
-        propensity_beta=propensity_beta_intervene,
-        subgroup_func=avg_npv_func,
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-    )
-    wcusum_int_res_df = wcusum_int.do_monitor(
-        num_iters=args.num_iters, data_gen=data_gen
-    )
-    logging.info("wcusum_int fired? %s", CUSUM.is_fired_alarm(wcusum_int_res_df))
-        
+    
     res_df = pd.concat(
         [
             cusum_res_df,
