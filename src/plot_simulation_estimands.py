@@ -76,6 +76,7 @@ def main():
 
     print(all_res)
     sns.set_context('paper', font_scale=2)
+    plt.figure(figsize=(10, 6))
     ax = sns.ecdfplot(
         data=all_res,
         x="alert_time",
