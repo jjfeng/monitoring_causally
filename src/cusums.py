@@ -10,6 +10,7 @@ from data_generator import DataGenerator
 
 
 class CUSUM:
+    alpha_scale = 1
     def __init__(
         self, mdl, batch_size: int, alpha_spending_func, delta: float, n_bootstrap: int
     ):
@@ -62,7 +63,7 @@ class CUSUM:
         
         quantile = (
             self.n_bootstrap
-            * (1 - self.alpha_spending_func(eff_count))
+            * (1 - self.alpha_spending_func(eff_count) * self.alpha_scale)
             / self.boot_cumsums.shape[0]
         )
         # print("quantile", quantile, eff_count, np.max(boot_cusums), self.alpha_spending_func(eff_count))
@@ -72,7 +73,7 @@ class CUSUM:
                 q=quantile,
             )
             boot_keep_mask = boot_cusums <= thres
-            print("boot_keep_mask", boot_keep_mask.sum()/self.n_bootstrap, 1 - self.alpha_spending_func(eff_count))
+            print("boot_keep_mask", boot_keep_mask.sum()/self.n_bootstrap, 1 - self.alpha_spending_func(eff_count) * self.alpha_scale)
             self.boot_cumsums = self.boot_cumsums[boot_keep_mask]
         else:
             logging.info("alert: quantile %f", quantile)
@@ -250,15 +251,16 @@ class wCUSUM(CUSUM):
             assert np.max(oracle_propensity) < 1 and np.min(oracle_propensity) > 0
             oracle_weight = 1 / oracle_propensity
             
-            iter_ppv_stats = self._get_iter_stat(
+            iter_ppv_stats, eff_obs_mask = self._get_iter_stat(
                 y.reshape((1, -1, 1)),
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis, :, :],
                 a=a[np.newaxis, :, np.newaxis],
                 collate=False,
-            )[0]
-            iter_ppv_stats = iter_ppv_stats[pred_class.flatten() == self.class_mtr]
+            )
+            self.alpha_scale = self.n_bootstrap/np.sum(eff_obs_mask)
+            iter_ppv_stats = iter_ppv_stats[0, eff_obs_mask.flatten()]
             subg_var_ests = np.var(iter_ppv_stats, axis=0)
             print(data_gen.propensity_beta, "subg_var_ests", subg_var_ests)
             subg_weights = 1 / np.sqrt(subg_var_ests)
@@ -274,10 +276,11 @@ class wCUSUM(CUSUM):
             * kwargs["h"]
             * self.subg_weights
         ) * pred_mask
+        nonzero_mask = (np.sum(kwargs["h"], axis=2) > 0).flatten()
         if not kwargs["collate"]:
-            return iter_stats
+            return iter_stats, nonzero_mask
         else:
-            return np.sum(iter_stats, axis=1, keepdims=True), pred_mask.sum()
+            return np.sum(iter_stats, axis=1, keepdims=True), nonzero_mask.sum()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         data_gen, self.subg_weights = self._setup(data_gen)
@@ -339,7 +342,7 @@ class wCUSUM(CUSUM):
                 pv_count,
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
-                h=h,
+                h=h[np.newaxis,:],
                 a=a[np.newaxis,:, np.newaxis],
                 alt_overest=self.is_ppv,
                 collate=True,
@@ -404,15 +407,15 @@ class CUSUM_score(CUSUM):
             (y - (test_sign * self.delta + kwargs["mdl_pred"])) * kwargs["h"] *  test_sign
             * self.subg_weights
         )
-        num_nonzero = (np.sum(kwargs["h"], axis=2) > 0).sum()
-        print("num_nonzero", num_nonzero)
+        nonzero_mask = (np.sum(kwargs["h"], axis=2) > 0).flatten()
+        print("num_nonzero", nonzero_mask.sum())
         if kwargs['collate']:
             if iter_stats.shape[0] == 1:
                 print(self.subg_weights)
                 print('ITER MEAN', np.sum(iter_stats, axis=1, keepdims=True)/np.sum(kwargs["h"], axis=1, keepdims=True))
-            return np.sum(iter_stats, axis=1, keepdims=True), num_nonzero
+            return np.sum(iter_stats, axis=1, keepdims=True), nonzero_mask.sum()
         else:
-            return iter_stats, num_nonzero
+            return iter_stats, nonzero_mask
 
     def _setup(self, data_gen: DataGenerator):
         print("DO SETUP")
@@ -429,10 +432,12 @@ class CUSUM_score(CUSUM):
             x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1))
         )
 
-        iter_score_stats = self._get_iter_stat(
+        iter_score_stats, eff_obs_mask = self._get_iter_stat(
             y.reshape((1, -1, 1)), mdl_pred=pred_y_a, h=h[np.newaxis, :, :], collate=False,
-        )[0]
-        subg_var_ests = np.var(iter_score_stats, axis=1)
+        )
+        self.alpha_scale = self.n_bootstrap/np.sum(eff_obs_mask)
+        iter_score_stats = iter_score_stats[0, eff_obs_mask.flatten()]
+        subg_var_ests = np.var(iter_score_stats, axis=0)
         print("subg_var_ests", subg_var_ests)
         subg_weights = 1 / np.sqrt(subg_var_ests)
         subg_weights[np.isinf(subg_weights)] = 0
@@ -463,6 +468,7 @@ class CUSUM_score(CUSUM):
             iter_score, score_incr = self._get_iter_stat(
                 y.reshape((1, -1, 1)), mdl_pred=pred_y_a, h=h[np.newaxis, :, :], collate=True
             )
+            print("score_incr", score_incr)
             score_count += score_incr
 
             score_cumsums = (
@@ -479,7 +485,7 @@ class CUSUM_score(CUSUM):
                 pred_y_a,
                 eff_count=score_count,
                 alt_overest=self.alt_overest,
-                h=h[np.newaxis, :, :],
+                h=h[np.newaxis, :],
                 mdl_pred=pred_y_a,
                 collate=True,
             )

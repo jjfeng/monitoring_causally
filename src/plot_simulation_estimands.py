@@ -75,6 +75,7 @@ def main():
     all_res.to_csv(args.csv_file, index=False)
 
     print(all_res)
+    sns.set_context('paper', font_scale=2)
     ax = sns.ecdfplot(
         data=all_res,
         x="alert_time",

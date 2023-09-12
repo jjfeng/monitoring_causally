@@ -117,7 +117,7 @@ def main():
     print("perf_targets", perf_targets_df)
 
     # All interventions assigned A=0 to optimize monitoring...
-    # alpha_spending_func_intervene = lambda eff_count: min(1, args.alpha * 2 / args.num_iters / args.batch_size * eff_count)
+    alpha_spending_func_intervene = lambda eff_count: min(1, args.alpha * 2 / args.num_iters / args.batch_size * eff_count)
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
 
     # WCUSUM with Intervention

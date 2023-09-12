@@ -12,11 +12,10 @@ localenv = env.Clone()
 # Set up state
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
-NUM_ITERS = 50
-NUM_SEEDS = 9
+NUM_ADD_ITERS = 65
+NUM_SEEDS = 8
 NUM_VAR = 2
 BATCH_SIZE = 40
-BETA_SHIFT_TIME = 3
 DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
@@ -27,6 +26,14 @@ INTERCEPT = -0.5
 SOURCE_BETA = '0,0,0,1,-1'
 TARGET_BETA = '0,0,0,1,-1'
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
+
+nest.add(
+    'beta_shift_time',
+    [
+        10
+    ],
+    label_func=lambda c: 'shift_time%d' % c
+)
 
 nest.add(
     'positivity',
@@ -52,7 +59,7 @@ def generate_data(env, outdir, c):
         '--seed-offset',
         0,
         '--beta-shift-time',
-        BETA_SHIFT_TIME,
+        c['beta_shift_time'],
         '--x-mean',
         X_SOURCE_MEAN,
         '--intercept=%.2f' % INTERCEPT,
@@ -147,7 +154,7 @@ def monitor(env, outdir, c):
         '--batch-size',
         BATCH_SIZE,
         '--num-iters',
-        NUM_ITERS,
+        c['beta_shift_time'] + NUM_ADD_ITERS,
         '--seed-offset',
         c['seed'] + 100,
         '--log-file ${TARGETS[0]}',
@@ -178,26 +185,26 @@ def plot_cusum(env, outdir, c):
     targets = [
         join(outdir, 'plot_cusum.png'),
     ]
-
-    cmd = [
-        'python plot_cusum.py',
-        '--res ${SOURCES[1]}',
-        '--plot-file ${TARGETS[0]}',
-    ]
-    # cmd = [
-    #     'python run_script.py',
-    #     '--cluster',
-    #     localenv['cluster'],
-    #     '--target-template-file',
-    #     '${TARGETS[0]}',
-    #     '--num-jobs',
-    #     NUM_JOBS,
-    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
-    # ]
-    return env.Command(
-        targets,
-        c['monitor'],
-        ' '.join(map(str, cmd)))
+    if c['seed'] < 10:
+        cmd = [
+            'python plot_cusum.py',
+            '--res ${SOURCES[1]}',
+            '--plot-file ${TARGETS[0]}',
+        ]
+        # cmd = [
+        #     'python run_script.py',
+        #     '--cluster',
+        #     localenv['cluster'],
+        #     '--target-template-file',
+        #     '${TARGETS[0]}',
+        #     '--num-jobs',
+        #     NUM_JOBS,
+        #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+        # ]
+        return env.Command(
+            targets,
+            c['monitor'],
+            ' '.join(map(str, cmd)))
 
 nest.pop('seed')
 
@@ -212,7 +219,7 @@ def aggregate(env, outdir, c):
     cmd = [
         'python plot_simulation_estimands.py',
         '--shift-time',
-        BETA_SHIFT_TIME,
+        c['beta_shift_time'],
         '--result',
         res_files,
         '--plot ${TARGETS[0]}',

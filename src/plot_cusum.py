@@ -44,8 +44,10 @@ def main():
         res_df.value[res_df.label == proc_label] /= max_val
 
     plt.clf()
+    sns.set_context('paper', font_scale=2)
     plt.figure(figsize=(10, 6))
     sns.lineplot(data=res_df, x="actual_iter", y="value", hue="label", style="variable")
+    sns.despine()
     plt.legend()
     plt.savefig(args.plot_file)
     print(args.plot_file)
