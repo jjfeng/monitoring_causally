@@ -13,7 +13,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 65
-NUM_SEEDS = 20
+NUM_SEEDS = 2
 NUM_VAR = 2
 BATCH_SIZE = 40
 DELTA = 0.02
@@ -42,6 +42,13 @@ nest.add(
     ]
 )
 
+nest.add(
+    'prob_shift',
+    [
+        0.2
+    ],
+    label_func=lambda c: 'prob_shift%.2f' % c
+)
 @nest.add_target_with_env(localenv)
 def generate_data(env, outdir, c):
     targets = [
@@ -69,6 +76,8 @@ def generate_data(env, outdir, c):
         SOURCE_BETA,
         '--target-beta',
         TARGET_BETA,
+        '--prob-shift',
+        c['prob_shift'],
         "--propensity-beta=%s" % PROPENSITY_BETA_DICT[c['positivity']],
         '--propensity-intercept=%.2f' % PROPENSITY_INTERCEPT,
         '--out-source-file ${TARGETS[0]}',

@@ -38,6 +38,9 @@ def parse_args():
         "--target-beta", type=str, help="comma separated list of coefficients"
     )
     parser.add_argument(
+        "--prob-shift", type=float, help="how much prob shifts"
+    )
+    parser.add_argument(
         "--beta-shift-time", type=int, help="shift time"
     )
     parser.add_argument(
@@ -109,6 +112,7 @@ def main():
             source_beta=args.source_beta,
             target_beta=args.target_beta,
             intercept=args.intercept,
+            prob_shift=args.prob_shift,
             x_mean=args.x_mean,
             beta_shift_time=args.beta_shift_time)
     else:

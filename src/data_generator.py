@@ -123,6 +123,31 @@ class DataGenerator:
         return X, y, A
 
 class SmallXShiftDataGenerator(DataGenerator):
+    def __init__(
+        self,
+        source_beta: np.ndarray,
+        target_beta: np.ndarray,
+        intercept,
+        prob_shift: float,
+        x_mean: np.ndarray,
+        propensity_beta: np.ndarray = None,
+        propensity_intercept: float =0,
+        beta_shift_time: int = None,
+        iter_seeds: np.ndarray= None,
+    ):
+        self.source_beta = source_beta
+        self.target_beta = target_beta
+        self.prob_shift = prob_shift
+        self.beta_shift_time = beta_shift_time
+        self.x_mean = x_mean.reshape((1, -1))
+        self.intercept = intercept
+        self.num_p = (source_beta.size - 1) // 2
+        assert x_mean.size == self.num_p
+        self.propensity_beta = propensity_beta
+        self.propensity_intercept = propensity_intercept
+        self.curr_time = 0
+        self.iter_seeds = iter_seeds
+
     def _get_prob(self, X, A):
         interaction = (A[:, np.newaxis] - 0.5) * 2 * X
         a_x_xa = np.concatenate([A[:, np.newaxis], X, interaction], axis=1)
@@ -130,7 +155,7 @@ class SmallXShiftDataGenerator(DataGenerator):
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         prob = 1 / (1 + np.exp(-logit))
         if self.is_shifted:
-            delta_prob = 0.1 * ((np.abs(X[:,:1]) < 1) | (np.abs(X[:,1:2]) < 1)) * (1 - A[:,np.newaxis])
+            delta_prob = self.prob_shift * ((np.abs(X[:,:1]) < 1) | (np.abs(X[:,1:2]) < 1)) * (1 - A[:,np.newaxis])
             prob = to_safe_prob(
                 prob + delta_prob,
                 eps=0
