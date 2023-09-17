@@ -12,6 +12,16 @@ from matplotlib import pyplot as plt
 
 from cusums import CUSUM
 
+PROC_DICT = {
+    'naive': '1A: Naive',
+    'wCUSUM_intervene_subgroup2': '1int: NPV int',
+    'wCUSUM_obs_subgroup2': '1obs: NPV obs',
+    'wCUSUM_obs_subgroup6': '2obs: NPV subgroup',
+    'wCUSUM_intervene_subgroup6': '2int: NPV subgroup',
+    'sCUSUM_less_obs': '3obs: Residuals',
+    'sCUSUM_less_intervene': '3int: Residuals',
+}
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="aggregate result files, get power of methods"
@@ -28,6 +38,11 @@ def parse_args():
     parser.add_argument(
         "--do-agg",
         action="store_true",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
     )
     parser.add_argument(
         "--csv-file",
@@ -71,20 +86,22 @@ def main():
         fire_df['seed'] = idx
         all_res.append(fire_df)
     all_res = pd.concat(all_res).reset_index(drop=True)
-
+    all_res['procedure'] = all_res.procedure.replace(PROC_DICT)
+    all_res['alert_time'] = all_res.alert_time * args.batch_size
     all_res.to_csv(args.csv_file, index=False)
 
     print(all_res)
     sns.set_context('paper', font_scale=2)
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(8, 5))
     ax = sns.ecdfplot(
         data=all_res,
         x="alert_time",
         hue='procedure',
-        legend=True
+        legend=True,
+        linewidth=3,
     )
-    plt.axvline(x=args.shift_time, color="black", linestyle="--")
-    plt.xlim(0, max_time + 1)
+    plt.axvline(x=args.batch_size * (args.shift_time + 1), color="black", linestyle="--")
+    plt.xlim(0, max_time * args.batch_size + 1)
     ax.set_xlabel("Alarm time")
     plt.tight_layout()
     sns.despine()

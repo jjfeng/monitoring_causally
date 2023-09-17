@@ -13,13 +13,14 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 65
-NUM_SEEDS = 2
+NUM_SEEDS = 4
 NUM_VAR = 2
 BATCH_SIZE = 40
 DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
-    "severe": '-4,0,0'
+    "severe": '-4,0,0',
+    "mild": '-2,0,0'
 }
 PROPENSITY_INTERCEPT = 0
 INTERCEPT = -0.5
@@ -38,14 +39,16 @@ nest.add(
 nest.add(
     'positivity',
     [
-        'severe'
+        'severe',
+        # 'mild'
     ]
 )
 
 nest.add(
     'prob_shift',
     [
-        0.2
+        0.1,
+        # 0.2
     ],
     label_func=lambda c: 'prob_shift%.2f' % c
 )
@@ -147,8 +150,8 @@ nest.add(
 @nest.add_target_with_env(localenv)
 def monitor(env, outdir, c):
     targets = [
-        join(outdir, 'log.txt'),
-        join(outdir, 'res.csv'),
+        join(outdir, 'log_more.txt'),
+        join(outdir, 'res_more.csv'),
     ]
 
     cmd = [
@@ -194,10 +197,12 @@ def plot_cusum(env, outdir, c):
     targets = [
         join(outdir, 'plot_cusum.png'),
     ]
-    if c['seed'] < 10:
+    if c['seed'] < 1:
         cmd = [
             'python plot_cusum.py',
             '--res ${SOURCES[1]}',
+            '--batch-size',
+            BATCH_SIZE,
             '--plot-file ${TARGETS[0]}',
         ]
         # cmd = [
@@ -229,6 +234,8 @@ def aggregate(env, outdir, c):
         'python plot_simulation_estimands.py',
         '--shift-time',
         c['beta_shift_time'],
+        '--batch-size',
+        BATCH_SIZE,
         '--result',
         res_files,
         '--plot ${TARGETS[0]}',

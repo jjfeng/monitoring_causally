@@ -26,6 +26,11 @@ def parse_args():
         type=str,
     )
     parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
         "--plot-file",
         type=str,
     )
@@ -43,12 +48,14 @@ def main():
         print("mas", max_val)
         res_df.value[res_df.label == proc_label] /= max_val
 
+    res_df['actual_iter'] = res_df.actual_iter * args.batch_size
     plt.clf()
-    sns.set_context('paper', font_scale=2)
-    plt.figure(figsize=(10, 6))
-    sns.lineplot(data=res_df, x="actual_iter", y="value", hue="label", style="variable", legend=False)
+    sns.set_context('paper', font_scale=3)
+    plt.figure(figsize=(8, 5))
+    sns.lineplot(data=res_df, x="actual_iter", y="value", hue="label", style="variable", legend=False, linewidth=3)
     plt.xlabel("Time")
     sns.despine()
+    plt.tight_layout()
     plt.savefig(args.plot_file)
     print(args.plot_file)
 

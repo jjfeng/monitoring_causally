@@ -73,7 +73,7 @@ class CUSUM:
                 q=quantile,
             )
             boot_keep_mask = boot_cusums <= thres
-            print("boot_keep_mask", boot_keep_mask.sum()/self.n_bootstrap, 1 - self.alpha_spending_func(eff_count) * self.alpha_scale)
+            # print("boot_keep_mask", boot_keep_mask.sum()/self.n_bootstrap, 1 - self.alpha_spending_func(eff_count) * self.alpha_scale)
             self.boot_cumsums = self.boot_cumsums[boot_keep_mask]
         else:
             logging.info("alert: quantile %f", quantile)
@@ -382,6 +382,8 @@ class CUSUM_score(CUSUM):
         subgroup_func,
         batch_size: int = 1,
         n_bootstrap: int = 1000,
+        propensity_beta: np.ndarray = None,
+        propensity_intercept: float = 0,
         delta: float = 0,
         halt_when_fired: bool = True,
         alt_overest: bool = True,
@@ -393,13 +395,18 @@ class CUSUM_score(CUSUM):
         self.subgroup_func = subgroup_func
         self.n_bootstrap = n_bootstrap
         self.delta = delta
+        self.propensity_beta = propensity_beta
+        self.propensity_intercept = propensity_intercept
         self.halt_when_fired = halt_when_fired
         self.alt_overest = alt_overest
         self.subg_weights = np.ones(1)
     
     @property
     def label(self):
-        return "sCUSUM_%s" % ('greater' if self.alt_overest else 'less')
+        return "sCUSUM_%s_%s" % (
+            ('greater' if self.alt_overest else 'less'),
+            ('intervene' if self.propensity_beta is not None else 'obs')
+        )
 
     def _get_iter_stat(self, y, **kwargs):
         test_sign = -1 if self.alt_overest else 1
@@ -419,11 +426,13 @@ class CUSUM_score(CUSUM):
 
     def _setup(self, data_gen: DataGenerator):
         print("DO SETUP")
-        # estimate class variance
-        # TOOO: do not use oracle for variance
+        # intervene on the data generator
         data_gen = copy.deepcopy(data_gen)
-        data_gen.propensity_beta = None
-        data_gen.curr_time = 123123
+        if self.propensity_beta is not None:
+            data_gen.propensity_beta = self.propensity_beta
+            data_gen.propensity_intercept = self.propensity_intercept
+        
+        # estimate class variance
         x, y, a = data_gen.generate(self.n_bootstrap, mdl=None)
         pred_y_a = self.mdl.predict_proba(
             np.concatenate([x, a[:, np.newaxis]], axis=1)
@@ -437,14 +446,17 @@ class CUSUM_score(CUSUM):
         )
         self.alpha_scale = self.n_bootstrap/np.sum(eff_obs_mask)
         iter_score_stats = iter_score_stats[0, eff_obs_mask.flatten()]
+        
         subg_var_ests = np.var(iter_score_stats, axis=0)
         print("subg_var_ests", subg_var_ests)
         subg_weights = 1 / np.sqrt(subg_var_ests)
+        # remove subgroups if positivity violations are too severe
         subg_weights[np.isinf(subg_weights)] = 0
-        return subg_weights.reshape((1, 1, -1))/subg_weights.max()
+
+        return data_gen, subg_weights.reshape((1, 1, -1))/subg_weights.max()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
-        self.subg_weights = self._setup(data_gen)
+        data_gen, self.subg_weights = self._setup(data_gen)
         print("Do %s monitor" % self.label)
         print("self.subg_weights", self.subg_weights)
 

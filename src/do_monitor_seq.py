@@ -122,13 +122,14 @@ def main():
     # WCUSUM with Intervention
     intervene_beta = np.zeros(data_gen.propensity_beta.shape)
     intervene_beta[0] = -2
+    intervene_intercept = -1
     wcusum_int = wCUSUM(
         mdl,
         threshold=THRES,
         batch_size=args.batch_size,
         perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
         propensity_beta=intervene_beta,
-        propensity_intercept=-1,
+        propensity_intercept=intervene_intercept,
         subgroup_func=avg_npv_func,
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
@@ -155,6 +156,47 @@ def main():
     )
     logging.info(
         "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_res_df_under)
+    )
+
+    # SCORE -- intervention
+    score_cusum = CUSUM_score(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        alpha_spending_func=alpha_spending_func,
+        propensity_beta=intervene_beta,
+        propensity_intercept=intervene_intercept,
+        subgroup_func=subgroup_npv_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        alt_overest=False, # check if we underestimated
+    )
+    score_cusum_int_res_df_under = score_cusum.do_monitor(
+        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
+    )
+    logging.info(
+        "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_int_res_df_under)
+    )
+
+    # WCUSUM with subgroups, intervention, oracle propensity model
+    wcusum_subg = wCUSUM(
+        mdl,
+        threshold=THRES,
+        perf_targets_df=perf_targets_df,
+        batch_size=args.batch_size,
+        propensity_beta=intervene_beta,
+        propensity_intercept=intervene_intercept,
+        alpha_spending_func=alpha_spending_func,
+        subgroup_func=subgroup_npv_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        metric="npv"
+    )
+    wcusum_subg_int_res_df = wcusum_subg.do_monitor(
+        num_iters=args.num_iters, data_gen=data_gen
+    )
+    logging.info(
+        "wcusum_subg_int fired? %s", CUSUM.is_fired_alarm(wcusum_subg_int_res_df)
     )
 
     # WCUSUM with subgroups, no intervention, oracle propensity model
@@ -210,7 +252,9 @@ def main():
             wcusum_res_df,
             wcusum_int_res_df,
             wcusum_subg_res_df,
+            wcusum_subg_int_res_df,
             score_cusum_res_df_under,
+            score_cusum_int_res_df_under,
         ]
     )
 
