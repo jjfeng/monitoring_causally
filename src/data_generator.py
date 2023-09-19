@@ -2,6 +2,7 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 
+from subgroups import _get_subgroup
 from common import to_safe_prob
 
 
@@ -158,10 +159,17 @@ class SmallXShiftDataGenerator(DataGenerator):
         beta = self.source_beta if not self.is_shifted else self.target_beta
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         prob = 1 / (1 + np.exp(-logit))
+        # print("IS SHIFT?", self.is_shifted)
         if self.is_shifted:
-            subG_mask = ((np.abs(X[:,:1]) < 1) | (np.abs(X[:,1:2]) < 1))
+            subG_mask = _get_subgroup(X)
             if self.subG == 0:
                 subG_mask = np.logical_not(subG_mask)
+            # print("PREVALENCE", subG_mask.mean())
+            # print("PROP", self.propensity_beta)
+            # print("A used", np.mean(A[subG_mask.flatten()]))
+            # print("prev prob", prob[subG_mask.flatten() * (A == self.shift_A)])
+            # print("prev prob", np.abs(prob[subG_mask.flatten() * (A == self.shift_A)] - 0.5).mean())
+            # print("prev prob", np.median(np.abs(prob[subG_mask.flatten() * (A == self.shift_A)] - 0.5)))
             delta_prob = self.prob_shift * subG_mask * (A[:,np.newaxis] == self.shift_A)
             prob = to_safe_prob(
                 prob + delta_prob,

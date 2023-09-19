@@ -63,12 +63,13 @@ class CUSUM:
         # plt.hist(boot_cusums)
         # plt.show()
         
+        tot_alpha_spent = self.alpha_spending_func(eff_count) * self.alpha_scale
         quantile = (
             self.n_bootstrap
-            * (1 - self.alpha_spending_func(eff_count) * self.alpha_scale)
+            * (1 - tot_alpha_spent)
             / self.boot_cumsums.shape[0]
         )
-        # print("quantile", quantile, eff_count, np.max(boot_cusums), self.alpha_spending_func(eff_count))
+        # print("quantile", quantile, eff_count, np.max(boot_cusums), tot_alpha_spent)
         if quantile < 1:
             thres = np.quantile(
                 boot_cusums,
@@ -142,11 +143,11 @@ class CUSUM_naive(CUSUM):
             print("iter", i, pv_count)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a01 = self._get_mdl_pred_a01(x)
-            pred_class = (pred_y_a01 > self.threshold).astype(int)
+            pred_class_a01 = (pred_y_a01 > self.threshold).astype(int)
             actual_iters.append(i)
 
             iter_pv_stat, pv_incr = self._get_iter_stat(
-                y[np.newaxis, :, np.newaxis], a[np.newaxis,:,np.newaxis], pred_class=pred_class[np.newaxis,:,:]
+                y[np.newaxis, :, np.newaxis], a[np.newaxis,:,np.newaxis], pred_class=pred_class_a01[np.newaxis,:,:]
             )
             pv_count += pv_incr
             pv_cumsums = (
@@ -163,7 +164,7 @@ class CUSUM_naive(CUSUM):
                 pred_y_a01,
                 a[np.newaxis,:,np.newaxis],
                 pv_count,
-                pred_class=pred_class[np.newaxis,:, :],
+                pred_class=pred_class_a01[np.newaxis,:, :],
                 alt_overest=self.is_ppv,
             )
             dcl.append(thres)
@@ -423,7 +424,7 @@ class CUSUM_score(CUSUM):
             ('intervene' if self.propensity_beta is not None else 'obs')
         )
 
-    def _get_iter_stat(self, y:np.ndarray, a=None, **kwargs):
+    def _get_iter_stat(self, y:np.ndarray, a: np.ndarray=None, **kwargs):
         """_summary_
 
         Args:
@@ -457,7 +458,9 @@ class CUSUM_score(CUSUM):
             data_gen.propensity_intercept = self.propensity_intercept
             logging.info("propensity interve %s %s", self.propensity_beta, self.propensity_intercept)
 
-        # estimate class variance
+        # assume random assignment to treatment (so just accounting for prevalence of each subgroup)
+        # TODO: this uses an oracle data generator, but better if we use the mdl itself to generate y
+        data_gen.update_time(0, set_seed=True)
         x, y, a = data_gen.generate(self.n_bootstrap, mdl=None)
         pred_y_a01 = self._get_mdl_pred_a01(x)
         pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
@@ -466,9 +469,10 @@ class CUSUM_score(CUSUM):
         )
 
         iter_score_stats, eff_obs_mask = self._get_iter_stat(
-            y.reshape((1, -1, 1)), a=None, mdl_pred=pred_y_a[np.newaxis,:,np.newaxis], h=h[np.newaxis, :, :], collate=False,
+            y.reshape((1, -1, 1)), mdl_pred=pred_y_a[np.newaxis,:,np.newaxis], h=h[np.newaxis, :, :], collate=False,
         )
         self.alpha_scale = self.n_bootstrap/np.sum(eff_obs_mask)
+        logging.info("ALPHA SCALE %f", self.alpha_scale)
         iter_score_stats = iter_score_stats[0, eff_obs_mask.flatten()]
         
         subg_var_ests = np.var(iter_score_stats, axis=0)
@@ -480,12 +484,14 @@ class CUSUM_score(CUSUM):
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         data_gen, self.subg_weights = self._setup(data_gen)
+        # data_gen, _ = self._setup(data_gen)
         print("Do %s monitor" % self.label)
         print("self.subg_weights", self.subg_weights)
+        logging.info("self.subg_weights %s", self.subg_weights)
 
         self.boot_cumsums = None
         score_cumsums = None
-        score_cusums = []
+        score_cusums = []   
         dcl = []
         score_count = 0
         for i in range(num_iters):
@@ -498,11 +504,12 @@ class CUSUM_score(CUSUM):
             h = self.subgroup_func(
                 x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)),
             )
-            assert np.all(h >= 0)
+            print("H SUBGROUP", h.sum(axis=0))
 
             iter_score, score_incr = self._get_iter_stat(
-                y.reshape((1, -1, 1)), a=None, mdl_pred=pred_y_a[np.newaxis,:,np.newaxis], h=h[np.newaxis, :, :], collate=True
+                y.reshape((1, -1, 1)), mdl_pred=pred_y_a[np.newaxis,:,np.newaxis], h=h[np.newaxis, :, :], collate=True
             )
+            print("iter_score", iter_score)
             score_count += score_incr
 
             score_cumsums = (
