@@ -70,6 +70,8 @@ def main():
     max_time = 0
     all_res = []
     for idx, f in enumerate(args.result_files):
+        if not os.path.exists(f):
+            continue
         res = pd.read_csv(f)
         max_time = max(max_time, res.actual_iter.max() + 1)
         fire_dict = {
@@ -88,20 +90,38 @@ def main():
     all_res["alert_time"] = all_res.alert_time * args.batch_size
     all_res.to_csv(args.csv_file, index=False)
 
+    uniq_procedures = all_res.procedure.drop_duplicates()
+    print("uniq_procedures", uniq_procedures)
+
     print(all_res)
     sns.set_context("paper", font_scale=2)
     plt.figure(figsize=(8, 5))
+    deep_colors = [(0.2980392156862745, 0.4470588235294118, 0.6901960784313725), (0.8666666666666667, 0.5176470588235295, 0.3215686274509804), (0.3333333333333333, 0.6588235294117647, 0.40784313725490196)]
+    pastel_colors = [(0.6313725490196078, 0.788235294117647, 0.9568627450980393), (1.0, 0.7058823529411765, 0.5098039215686274), (0.5529411764705883, 0.8980392156862745, 0.6313725490196078)]
+    sns.set_palette(
+        [
+            'black',
+            deep_colors[0],
+            pastel_colors[0],
+            deep_colors[1],
+            pastel_colors[1],
+            deep_colors[2],
+            pastel_colors[2],
+        ]
+    )
     ax = sns.ecdfplot(
         data=all_res,
         x="alert_time",
         hue="procedure",
-        legend=True,
         linewidth=3,
+        legend=True
     )
+
     plt.axvline(
         x=args.batch_size * (args.shift_time + 1), color="black", linestyle="--"
     )
     plt.xlim(0, max_time * args.batch_size + 1)
+    
     ax.set_xlabel("Alarm time")
     plt.tight_layout()
     sns.despine()
