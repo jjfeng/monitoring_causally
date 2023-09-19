@@ -162,3 +162,4 @@ cython_debug/
 # Other files
 src/.sconsign.dblite
 _output
+.DS_Store
