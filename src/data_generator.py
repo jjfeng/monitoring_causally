@@ -2,7 +2,7 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 
-from subgroups import _get_subgroup
+from subgroups import SubgroupDetector
 from common import to_safe_prob
 
 
@@ -161,7 +161,7 @@ class SmallXShiftDataGenerator(DataGenerator):
         prob = 1 / (1 + np.exp(-logit))
         # print("IS SHIFT?", self.is_shifted)
         if self.is_shifted:
-            subG_mask = _get_subgroup(X)
+            subG_mask = SubgroupDetector._get_subgroup(X)
             if self.subG == 0:
                 subG_mask = np.logical_not(subG_mask)
             # print("PREVALENCE", subG_mask.mean())
