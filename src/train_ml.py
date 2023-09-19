@@ -131,7 +131,7 @@ def do_evaluate_model(mdl, testX, testY, plot_file: str = None, prefix: str = No
 
 def do_evaluate_subgroup_npv(mdl, testX, testY, out_file: str = None):
     pred_prob = mdl.predict_proba(testX)[:, 1]
-    h = subgroup_npv_a_func(testX[:,:-1], testX[:,-1:], pred_prob.reshape((-1,1)))
+    h = SubgroupDetector().detect_with_a(testX[:,:-1], testX[:,-1:], pred_prob.reshape((-1,1)))
     npvs = np.sum((testY[:,np.newaxis] == 0) * h, axis=0)/np.sum(h, axis=0)
     print("subgroup size", np.sum(h, axis=0))
     res = pd.DataFrame({

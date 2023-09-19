@@ -281,7 +281,6 @@ class wCUSUM(CUSUM):
     def _get_iter_stat(self, y, a, **kwargs):
         pred_class = kwargs["pred_class"][np.newaxis, :, self.subgroup_detector.subg_treatments]
         pred_mask = pred_class == self.class_mtr
-        # TODO: this is incorrect
         iter_stats = (
             self.perf_targets - (y == pred_class) * kwargs["oracle_weight"] * kwargs["ha"]
         ) * pred_mask * self.subg_weights * kwargs["h"]
