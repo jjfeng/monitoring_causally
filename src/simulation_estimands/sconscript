@@ -15,17 +15,17 @@ nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 NUM_ADD_ITERS = 65
 NUM_SEEDS = 10
 NUM_VAR = 2
-BATCH_SIZE = 40
+BATCH_SIZE = 50
 DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
-    "severe": '-4,0,0',
+    "severe": '-6,0,0',
     "mild": '-2,0,0'
 }
 PROPENSITY_INTERCEPT = 0
 INTERCEPT = -0.5
-SOURCE_BETA = '0,0,0,1,-1'
-TARGET_BETA = '0,0,0,1,-1'
+SOURCE_BETA = '0,0,0,0.5,-1'
+TARGET_BETA = '0,0,0,0.5,-1'
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 
 nest.add(
@@ -51,6 +51,16 @@ nest.add(
         # 0.2
     ],
     label_func=lambda c: 'prob_shift%.2f' % c
+)
+
+
+nest.add(
+    'subG',
+    [
+        # 0,
+        1
+    ],
+    label_func=lambda c: 'subG%d' % c
 )
 
 nest.add(
@@ -87,6 +97,8 @@ def generate_data(env, outdir, c):
         'small_x_shift',
         '--shift-A',
         c['shiftA'],
+        '--subG',
+        c['subG'],
         '--source-beta',
         SOURCE_BETA,
         '--target-beta',
@@ -171,7 +183,7 @@ def monitor(env, outdir, c):
         '--data-gen ${SOURCES[0]}',
         '--mdl ${SOURCES[1]}',
         '--perf-targets ${SOURCES[2]}',
-        '--score-intervene-beta="-9"',
+        '--score-intervene-beta="-2"',
         '--mean-intervene-beta="-2"',
         '--intervene-intercept',
         0,

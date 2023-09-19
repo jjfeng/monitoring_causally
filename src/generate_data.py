@@ -32,6 +32,7 @@ def parse_args():
     parser.add_argument("--intercept", type=float, help="intercept")
     parser.add_argument("--shift-type", type=str, choices=["none", "small_x_shift"])
     parser.add_argument("--shift-A", type=int)
+    parser.add_argument("--subG", type=int)
     parser.add_argument(
         "--source-beta", type=str, help="comma separated list of coefficients"
     )
@@ -114,6 +115,7 @@ def main():
             target_beta=args.target_beta,
             intercept=args.intercept,
             prob_shift=args.prob_shift,
+            subG=args.subG,
             shift_A=args.shift_A,
             x_mean=args.x_mean,
             beta_shift_time=args.beta_shift_time)

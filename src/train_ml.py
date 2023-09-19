@@ -83,12 +83,12 @@ def parse_args():
     parser.add_argument(
         "--plot-source-file-template",
         type=str,
-        default="_output/plotJOB.png",
+        default="_output/plot_ml_JOB.png",
     )
     parser.add_argument(
         "--plot-target-file-template",
         type=str,
-        default="_output/plotJOB.png",
+        default="_output/plot_ml_JOB.png",
     )
     args = parser.parse_args()
     args.train_dataset_file = args.train_dataset_template.replace(
@@ -131,7 +131,7 @@ def do_evaluate_model(mdl, testX, testY, plot_file: str = None, prefix: str = No
 
 def do_evaluate_subgroup_npv(mdl, testX, testY, out_file: str = None):
     pred_prob = mdl.predict_proba(testX)[:, 1]
-    h = subgroup_npv_func(testX[:,:-1], testX[:,-1:], pred_prob.reshape((-1,1)))
+    h = SubgroupDetector().detect_with_a(testX[:,:-1], testX[:,-1:], pred_prob.reshape((-1,1)))
     npvs = np.sum((testY[:,np.newaxis] == 0) * h, axis=0)/np.sum(h, axis=0)
     print("subgroup size", np.sum(h, axis=0))
     res = pd.DataFrame({
@@ -234,6 +234,8 @@ def main():
     # Evaluate the model on unbiased target data
     logging.info("oracle pre")
     data_gen.update_time(0, set_seed=True)
+    data_gen.propensity_beta = None
+    data_gen.propensity_intercept = None
     target_x, target_y, target_a = data_gen.generate(NOBS)
     target_testX = np.concatenate([target_x, target_a.reshape((-1, 1))], axis=1)
     do_evaluate_subgroup_npv(mdl, target_testX, target_y, args.perf_csv)

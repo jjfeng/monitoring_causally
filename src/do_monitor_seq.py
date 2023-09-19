@@ -149,7 +149,7 @@ def main():
         threshold=THRES,
         batch_size=args.batch_size,
         alpha_spending_func=alpha_spending_func,
-        subgroup_func=score_subgroup_npv_func,
+        subgroup_detector=ScoreSubgroupDetector(),
         delta=args.delta,
         n_bootstrap=args.n_boot,
         alt_overest=False, # check if we underestimated
@@ -167,7 +167,7 @@ def main():
         threshold=THRES,
         batch_size=args.batch_size,
         alpha_spending_func=alpha_spending_func,
-        subgroup_func=score_subgroup_npv_func,
+        subgroup_detector=ScoreSubgroupDetector(),
         propensity_beta=score_intervene_beta,
         propensity_intercept=intervene_intercept,
         delta=args.delta,
@@ -180,7 +180,7 @@ def main():
     logging.info(
         "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_int_res_df_under)
     )
-    
+
     # WCUSUM with subgroups, intervention, oracle propensity model
     wcusum_subg = wCUSUM(
         mdl,
@@ -190,8 +190,7 @@ def main():
         propensity_beta=cusum_intervene_beta,
         propensity_intercept=intervene_intercept,
         alpha_spending_func=alpha_spending_func,
-        subgroup_func=subgroup_npv_func,
-        treatment_subgroups=SUBGROUP_TREATMENTS,
+        subgroup_detector=SubgroupDetector(),
         delta=args.delta,
         n_bootstrap=args.n_boot,
         metric="npv"
@@ -208,8 +207,7 @@ def main():
         mdl,
         threshold=THRES,
         perf_targets_df=perf_targets_df,
-        subgroup_func=subgroup_npv_func,
-        treatment_subgroups=SUBGROUP_TREATMENTS,
+        subgroup_detector=SubgroupDetector(),
         batch_size=args.batch_size,
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
@@ -223,20 +221,6 @@ def main():
         "wcusum_subg fired? %s", CUSUM.is_fired_alarm(wcusum_subg_res_df)
     )
 
-    # Naive CUSUM
-    cusum = CUSUM_naive(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-        metric="npv",
-    )
-    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
-
     # WCUSUM with Intervention
     wcusum_int = wCUSUM(
         mdl,
@@ -245,8 +229,7 @@ def main():
         perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
         propensity_beta=cusum_intervene_beta,
         propensity_intercept=intervene_intercept,
-        subgroup_func=avg_npv_func,
-        treatment_subgroups=AVG_TREATMENTS,
+        subgroup_detector=SubgroupDetectorSimple(),
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
@@ -262,15 +245,27 @@ def main():
         threshold=THRES,
         batch_size=args.batch_size,
         perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
-        subgroup_func=avg_npv_func,
-        treatment_subgroups=AVG_TREATMENTS,
+        subgroup_detector=SubgroupDetectorSimple(),
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
     )
     wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))
-    
+
+    # Naive CUSUM
+    cusum = CUSUM_naive(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        metric="npv",
+    )
+    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
     
     res_df = pd.concat(
         [

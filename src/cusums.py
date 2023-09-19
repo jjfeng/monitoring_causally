@@ -1,11 +1,13 @@
 import copy
 import logging
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
 
 from matplotlib import pyplot as plt
 
+from subgroups import *
 from data_generator import DataGenerator
 
 
@@ -62,12 +64,13 @@ class CUSUM:
         # plt.hist(boot_cusums)
         # plt.show()
         
+        tot_alpha_spent = self.alpha_spending_func(eff_count) * self.alpha_scale
         quantile = (
             self.n_bootstrap
-            * (1 - self.alpha_spending_func(eff_count) * self.alpha_scale)
+            * (1 - tot_alpha_spent)
             / self.boot_cumsums.shape[0]
         )
-        # print("quantile", quantile, eff_count, np.max(boot_cusums), self.alpha_spending_func(eff_count))
+        # print("quantile", quantile, eff_count, np.max(boot_cusums), tot_alpha_spent)
         if quantile < 1:
             thres = np.quantile(
                 boot_cusums,
@@ -141,13 +144,12 @@ class CUSUM_naive(CUSUM):
             print("iter", i, pv_count)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a01 = self._get_mdl_pred_a01(x)
-            pred_class = (pred_y_a01 > self.threshold).astype(int)
+            pred_class_a01 = (pred_y_a01 > self.threshold).astype(int)
             actual_iters.append(i)
 
             iter_pv_stat, pv_incr = self._get_iter_stat(
-                y[np.newaxis, :, np.newaxis], a[np.newaxis,:,np.newaxis], pred_class=pred_class[np.newaxis,:,:]
+                y[np.newaxis, :, np.newaxis], a[np.newaxis,:,np.newaxis], pred_class=pred_class_a01[np.newaxis,:,:]
             )
-            print("PV STAT", iter_pv_stat)
             pv_count += pv_incr
             pv_cumsums = (
                 np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
@@ -163,7 +165,7 @@ class CUSUM_naive(CUSUM):
                 pred_y_a01,
                 a[np.newaxis,:,np.newaxis],
                 pv_count,
-                pred_class=pred_class[np.newaxis,:, :],
+                pred_class=pred_class_a01[np.newaxis,:, :],
                 alt_overest=self.is_ppv,
             )
             dcl.append(thres)
@@ -201,8 +203,7 @@ class wCUSUM(CUSUM):
         threshold: float,
         perf_targets_df: pd.DataFrame,
         alpha_spending_func,
-        subgroup_func,
-        treatment_subgroups:np.ndarray,
+        subgroup_detector: SubgroupDetectorBase,
         propensity_beta: np.ndarray = None,
         propensity_intercept: float = 0,
         batch_size: int = 1,
@@ -219,8 +220,7 @@ class wCUSUM(CUSUM):
         self.alpha_spending_func = alpha_spending_func
         self.propensity_beta = propensity_beta
         self.propensity_intercept = propensity_intercept
-        self.subgroup_func = subgroup_func
-        self.treatment_subgroups = treatment_subgroups
+        self.subgroup_detector = subgroup_detector
         self.delta = delta
         self.n_bootstrap = n_bootstrap
         self.halt_when_fired = halt_when_fired
@@ -244,48 +244,47 @@ class wCUSUM(CUSUM):
             data_gen.propensity_intercept = self.propensity_intercept
 
         # estimate class variance
-        subg_weights = np.ones(1)
-        if self.subgroup_func is not None:
-            x, y, a = data_gen.generate(self.n_bootstrap, self.mdl)
-            pred_y_a01 = self._get_mdl_pred_a01(x)
-            pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
-            pred_class = (pred_y_a01 > self.threshold).astype(int)
-            h = self.subgroup_func(x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
-            oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
-            oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
-                (1, -1, 1)
-            )
-            print("oracle_propensity", np.quantile(oracle_propensity, [0.001,0.01,0.1]))
-            assert np.max(oracle_propensity) < 1 and np.min(oracle_propensity) > 0
-            oracle_weight = 1 / oracle_propensity
-            
-            iter_ppv_stats, eff_obs_mask = self._get_iter_stat(
-                y.reshape((1, -1, 1)),
-                a[np.newaxis, :, np.newaxis],
-                pred_class=pred_class,
-                oracle_weight=oracle_weight,
-                h=h[np.newaxis, :, :],
-                collate=False,
-            )
-            self.alpha_scale = self.n_bootstrap/np.sum(eff_obs_mask)
-            iter_ppv_stats = iter_ppv_stats[0, eff_obs_mask.flatten()]
-            subg_var_ests = np.var(iter_ppv_stats, axis=0)
-            print(data_gen.propensity_beta, "subg_var_ests", subg_var_ests)
-            subg_weights = 1 / np.sqrt(subg_var_ests)
-            subg_weights[np.isinf(subg_weights)] = 0
-            print("subg_weights", subg_weights)
+        x, y, a = data_gen.generate(self.n_bootstrap, self.mdl)
+        pred_y_a01 = self._get_mdl_pred_a01(x)
+        pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
+        pred_class = (pred_y_a01 > self.threshold).astype(int)
+        h = self.subgroup_detector.detect(x, pred_y_a01)
+        ha = self.subgroup_detector.detect_with_a(x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
+        oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
+        oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
+            (1, -1, 1)
+        )
+        print("oracle_propensity", np.quantile(oracle_propensity, [0.001,0.01,0.1]))
+        assert np.max(oracle_propensity) < 1 and np.min(oracle_propensity) > 0
+        oracle_weight = 1 / oracle_propensity
+        
+        iter_ppv_stats, eff_obs_mask = self._get_iter_stat(
+            y.reshape((1, -1, 1)),
+            a[np.newaxis, :, np.newaxis],
+            pred_class=pred_class,
+            oracle_weight=oracle_weight,
+            h=h[np.newaxis, :, :],
+            ha=ha[np.newaxis, :, :],
+            collate=False,
+        )
+        self.alpha_scale = self.n_bootstrap/np.sum(eff_obs_mask)
+        iter_ppv_stats = iter_ppv_stats[0, eff_obs_mask.flatten()]
+        subg_var_ests = np.var(iter_ppv_stats, axis=0)
+        print(data_gen.propensity_beta, "subg_var_ests", subg_var_ests)
+
+        # calculate weights
+        subg_weights = 1 / np.sqrt(subg_var_ests)
+        subg_weights[np.isinf(subg_weights)] = 0
+        print("subg_weights", subg_weights)
         return data_gen, subg_weights.reshape((1, 1, -1))
 
     def _get_iter_stat(self, y, a, **kwargs):
-        pred_class = kwargs["pred_class"][np.newaxis, :, self.treatment_subgroups]
+        pred_class = kwargs["pred_class"][np.newaxis, :, self.subgroup_detector.subg_treatments]
         pred_mask = pred_class == self.class_mtr
         iter_stats = (
-            (self.perf_targets - (y == pred_class))
-            * kwargs["oracle_weight"]
-            * kwargs["h"]
-            * self.subg_weights
-        ) * pred_mask
-        nonzero_mask = np.ones(y.size, dtype=bool)
+            self.perf_targets - (y == pred_class) * kwargs["oracle_weight"] * kwargs["ha"]
+        ) * pred_mask * self.subg_weights * kwargs["h"]
+        nonzero_mask = (np.sum(kwargs["h"], axis=2) > 0).flatten()
         if not kwargs["collate"]:
             return iter_stats, nonzero_mask
         else:
@@ -309,8 +308,13 @@ class wCUSUM(CUSUM):
             pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
             pred_class = (pred_y_a01 > self.threshold).astype(int)
             h = (
-                self.subgroup_func(x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
-                if self.subgroup_func is not None
+                self.subgroup_detector.detect(x, pred_y_a01)
+                if self.subgroup_detector is not None
+                else np.ones(1)
+            )
+            ha = (
+                self.subgroup_detector.detect_with_a(x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
+                if self.subgroup_detector is not None
                 else np.ones(1)
             )
             oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
@@ -319,9 +323,6 @@ class wCUSUM(CUSUM):
             )
             oracle_weight = 1 / oracle_propensity
             # print("weight", oracle_weight, h.shape, self.subg_weights)
-            # plt.hist(oracle_propensity.flatten())
-            # plt.show()
-            # 1/0
 
             iter_pv_stat, pv_incr = self._get_iter_stat(
                 y.reshape((1, -1, 1)),
@@ -329,9 +330,9 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis, :],
+                ha=ha[np.newaxis, :],
                 collate=True,
             )
-            print("iter_pv_stat", iter_pv_stat.shape)
             pv_count += pv_incr
             pv_cumsums = (
                 np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
@@ -346,7 +347,6 @@ class wCUSUM(CUSUM):
                 pv_cumsums[0, 0] / self.batch_size / (i + 1),
             )
 
-            print("more shape", a.shape, pred_y_a01.shape)
             thres = self.do_bootstrap_update(
                 pred_y_a01,
                 a[np.newaxis,:, np.newaxis],
@@ -354,6 +354,7 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis,:],
+                ha=ha[np.newaxis,:],
                 alt_overest=self.is_ppv,
                 collate=True,
             )
@@ -389,7 +390,7 @@ class CUSUM_score(CUSUM):
         mdl,
         threshold: float,
         alpha_spending_func,
-        subgroup_func,
+        subgroup_detector: ScoreSubgroupDetector,
         batch_size: int = 1,
         n_bootstrap: int = 1000,
         propensity_beta: np.ndarray = None,
@@ -402,7 +403,7 @@ class CUSUM_score(CUSUM):
         self.threshold = threshold
         self.batch_size = batch_size
         self.alpha_spending_func = alpha_spending_func
-        self.subgroup_func = subgroup_func
+        self.subgroup_detector = subgroup_detector
         self.n_bootstrap = n_bootstrap
         self.delta = delta
         self.propensity_beta = propensity_beta
@@ -418,7 +419,7 @@ class CUSUM_score(CUSUM):
             ('intervene' if self.propensity_beta is not None else 'obs')
         )
 
-    def _get_iter_stat(self, y:np.ndarray, a=None, **kwargs):
+    def _get_iter_stat(self, y:np.ndarray, a: np.ndarray=None, **kwargs):
         """_summary_
 
         Args:
@@ -452,18 +453,21 @@ class CUSUM_score(CUSUM):
             data_gen.propensity_intercept = self.propensity_intercept
             logging.info("propensity interve %s %s", self.propensity_beta, self.propensity_intercept)
 
-        # estimate class variance
+        # assume random assignment to treatment (so just accounting for prevalence of each subgroup)
+        # TODO: this uses an oracle data generator, but better if we use the mdl itself to generate y
+        data_gen.update_time(0, set_seed=True)
         x, y, a = data_gen.generate(self.n_bootstrap, mdl=None)
         pred_y_a01 = self._get_mdl_pred_a01(x)
         pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
-        h = self.subgroup_func(
+        h = self.subgroup_detector.detect(
             x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1))
         )
 
         iter_score_stats, eff_obs_mask = self._get_iter_stat(
-            y.reshape((1, -1, 1)), a=None, mdl_pred=pred_y_a[np.newaxis,:,np.newaxis], h=h[np.newaxis, :, :], collate=False,
+            y.reshape((1, -1, 1)), mdl_pred=pred_y_a[np.newaxis,:,np.newaxis], h=h[np.newaxis, :, :], collate=False,
         )
         self.alpha_scale = self.n_bootstrap/np.sum(eff_obs_mask)
+        logging.info("ALPHA SCALE %f", self.alpha_scale)
         iter_score_stats = iter_score_stats[0, eff_obs_mask.flatten()]
         
         subg_var_ests = np.var(iter_score_stats, axis=0)
@@ -475,12 +479,14 @@ class CUSUM_score(CUSUM):
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         data_gen, self.subg_weights = self._setup(data_gen)
+        # data_gen, _ = self._setup(data_gen)
         print("Do %s monitor" % self.label)
         print("self.subg_weights", self.subg_weights)
+        logging.info("self.subg_weights %s", self.subg_weights)
 
         self.boot_cumsums = None
         score_cumsums = None
-        score_cusums = []
+        score_cusums = []   
         dcl = []
         score_count = 0
         for i in range(num_iters):
@@ -490,13 +496,12 @@ class CUSUM_score(CUSUM):
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a01 = self._get_mdl_pred_a01(x)
             pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
-            h = self.subgroup_func(
+            h = self.subgroup_detector.detect(
                 x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)),
             )
-            assert np.all(h >= 0)
 
             iter_score, score_incr = self._get_iter_stat(
-                y.reshape((1, -1, 1)), a=None, mdl_pred=pred_y_a[np.newaxis,:,np.newaxis], h=h[np.newaxis, :, :], collate=True
+                y.reshape((1, -1, 1)), mdl_pred=pred_y_a[np.newaxis,:,np.newaxis], h=h[np.newaxis, :, :], collate=True
             )
             score_count += score_incr
 

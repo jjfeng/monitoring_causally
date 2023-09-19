@@ -2,6 +2,7 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 
+from subgroups import SubgroupDetector
 from common import to_safe_prob
 
 
@@ -130,6 +131,7 @@ class SmallXShiftDataGenerator(DataGenerator):
         intercept,
         prob_shift: float,
         shift_A:int,
+        subG: int,
         x_mean: np.ndarray,
         propensity_beta: np.ndarray = None,
         propensity_intercept: float =0,
@@ -140,6 +142,7 @@ class SmallXShiftDataGenerator(DataGenerator):
         self.target_beta = target_beta
         self.prob_shift = prob_shift
         self.shift_A = shift_A
+        self.subG = subG
         self.beta_shift_time = beta_shift_time
         self.x_mean = x_mean.reshape((1, -1))
         self.intercept = intercept
@@ -156,8 +159,18 @@ class SmallXShiftDataGenerator(DataGenerator):
         beta = self.source_beta if not self.is_shifted else self.target_beta
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         prob = 1 / (1 + np.exp(-logit))
+        # print("IS SHIFT?", self.is_shifted)
         if self.is_shifted:
-            delta_prob = self.prob_shift * ((np.abs(X[:,:1]) < 1) | (np.abs(X[:,1:2]) < 1)) * (A[:,np.newaxis] == self.shift_A)
+            subG_mask = SubgroupDetector._get_subgroup(X)
+            if self.subG == 0:
+                subG_mask = np.logical_not(subG_mask)
+            # print("PREVALENCE", subG_mask.mean())
+            # print("PROP", self.propensity_beta)
+            # print("A used", np.mean(A[subG_mask.flatten()]))
+            # print("prev prob", prob[subG_mask.flatten() * (A == self.shift_A)])
+            # print("prev prob", np.abs(prob[subG_mask.flatten() * (A == self.shift_A)] - 0.5).mean())
+            # print("prev prob", np.median(np.abs(prob[subG_mask.flatten() * (A == self.shift_A)] - 0.5)))
+            delta_prob = self.prob_shift * subG_mask * (A[:,np.newaxis] == self.shift_A)
             prob = to_safe_prob(
                 prob + delta_prob,
                 eps=0
