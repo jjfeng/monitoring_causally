@@ -129,6 +129,7 @@ class SmallXShiftDataGenerator(DataGenerator):
         target_beta: np.ndarray,
         intercept,
         prob_shift: float,
+        shift_A:int,
         x_mean: np.ndarray,
         propensity_beta: np.ndarray = None,
         propensity_intercept: float =0,
@@ -138,6 +139,7 @@ class SmallXShiftDataGenerator(DataGenerator):
         self.source_beta = source_beta
         self.target_beta = target_beta
         self.prob_shift = prob_shift
+        self.shift_A = shift_A
         self.beta_shift_time = beta_shift_time
         self.x_mean = x_mean.reshape((1, -1))
         self.intercept = intercept
@@ -155,7 +157,7 @@ class SmallXShiftDataGenerator(DataGenerator):
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         prob = 1 / (1 + np.exp(-logit))
         if self.is_shifted:
-            delta_prob = self.prob_shift * ((np.abs(X[:,:1]) < 1) | (np.abs(X[:,1:2]) < 1)) * (1 - A[:,np.newaxis])
+            delta_prob = self.prob_shift * ((np.abs(X[:,:1]) < 1) | (np.abs(X[:,1:2]) < 1)) * (A[:,np.newaxis] == self.shift_A)
             prob = to_safe_prob(
                 prob + delta_prob,
                 eps=0

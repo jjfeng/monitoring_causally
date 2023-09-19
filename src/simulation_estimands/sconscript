@@ -13,7 +13,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 65
-NUM_SEEDS = 1
+NUM_SEEDS = 10
 NUM_VAR = 2
 BATCH_SIZE = 40
 DELTA = 0.02
@@ -52,6 +52,16 @@ nest.add(
     ],
     label_func=lambda c: 'prob_shift%.2f' % c
 )
+
+nest.add(
+    'shiftA',
+    [
+        0,
+        1
+    ],
+    label_func=lambda c: 'shiftA%d' % c
+)
+
 @nest.add_target_with_env(localenv)
 def generate_data(env, outdir, c):
     targets = [
@@ -75,6 +85,8 @@ def generate_data(env, outdir, c):
         '--intercept=%.2f' % INTERCEPT,
         '--shift-type',
         'small_x_shift',
+        '--shift-A',
+        c['shiftA'],
         '--source-beta',
         SOURCE_BETA,
         '--target-beta',
@@ -150,8 +162,8 @@ nest.add(
 @nest.add_target_with_env(localenv)
 def monitor(env, outdir, c):
     targets = [
-        join(outdir, 'log_more.txt'),
-        join(outdir, 'res_more.csv'),
+        join(outdir, 'log.txt'),
+        join(outdir, 'res.csv'),
     ]
 
     cmd = [
@@ -159,6 +171,10 @@ def monitor(env, outdir, c):
         '--data-gen ${SOURCES[0]}',
         '--mdl ${SOURCES[1]}',
         '--perf-targets ${SOURCES[2]}',
+        '--score-intervene-beta="-9"',
+        '--mean-intervene-beta="-2"',
+        '--intervene-intercept',
+        0,
         '--alpha',
         ALPHA,
         '--delta',

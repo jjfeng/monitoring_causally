@@ -31,6 +31,24 @@ def parse_args():
         help="batch size for monitoring",
     )
     parser.add_argument(
+        "--mean-intervene-beta",
+        type=float,
+        default=-2,
+        help="slope for randomization model for intervention",
+    )
+    parser.add_argument(
+        "--score-intervene-beta",
+        type=float,
+        default=-2,
+        help="slope for randomization model for intervention",
+    )
+    parser.add_argument(
+        "--intervene-intercept",
+        type=float,
+        default=0,
+        help="intercept for randomization model for intervention",
+    )
+    parser.add_argument(
         "--num-iters",
         type=int,
         default=20,
@@ -119,17 +137,57 @@ def main():
     # uniform alpha spending function
     alpha_spending_func = lambda eff_count: min(1, args.alpha / args.num_iters / args.batch_size * eff_count)
 
-    intervene_beta = np.zeros(data_gen.propensity_beta.shape)
-    intervene_beta[0] = -2
-    intervene_intercept = -1
+    score_intervene_beta = np.zeros(data_gen.propensity_beta.shape)
+    score_intervene_beta[0] = args.score_intervene_beta
+    cusum_intervene_beta = np.zeros(data_gen.propensity_beta.shape)
+    cusum_intervene_beta[0] = args.mean_intervene_beta
+    intervene_intercept = args.intervene_intercept
 
+    # SCORE
+    score_cusum = CUSUM_score(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        alpha_spending_func=alpha_spending_func,
+        subgroup_func=score_subgroup_npv_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        alt_overest=False, # check if we underestimated
+    )
+    score_cusum_res_df_under = score_cusum.do_monitor(
+        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
+    )
+    logging.info(
+        "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_res_df_under)
+    )
+
+    # SCORE -- intervention
+    score_cusum = CUSUM_score(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        alpha_spending_func=alpha_spending_func,
+        subgroup_func=score_subgroup_npv_func,
+        propensity_beta=score_intervene_beta,
+        propensity_intercept=intervene_intercept,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        alt_overest=False, # check if we underestimated
+    )
+    score_cusum_int_res_df_under = score_cusum.do_monitor(
+        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
+    )
+    logging.info(
+        "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_int_res_df_under)
+    )
+    
     # WCUSUM with subgroups, intervention, oracle propensity model
     wcusum_subg = wCUSUM(
         mdl,
         threshold=THRES,
         perf_targets_df=perf_targets_df,
         batch_size=args.batch_size,
-        propensity_beta=intervene_beta,
+        propensity_beta=cusum_intervene_beta,
         propensity_intercept=intervene_intercept,
         alpha_spending_func=alpha_spending_func,
         subgroup_func=subgroup_npv_func,
@@ -185,7 +243,7 @@ def main():
         threshold=THRES,
         batch_size=args.batch_size,
         perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
-        propensity_beta=intervene_beta,
+        propensity_beta=cusum_intervene_beta,
         propensity_intercept=intervene_intercept,
         subgroup_func=avg_npv_func,
         treatment_subgroups=AVG_TREATMENTS,
@@ -212,47 +270,8 @@ def main():
     )
     wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))
-    1/0
     
-    # SCORE
-    score_cusum = CUSUM_score(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        alpha_spending_func=alpha_spending_func,
-        subgroup_func=subgroup_npv_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-        alt_overest=False, # check if we underestimated
-    )
-    score_cusum_res_df_under = score_cusum.do_monitor(
-        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
-    )
-    logging.info(
-        "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_res_df_under)
-    )
-
-    # SCORE -- intervention
-    score_cusum = CUSUM_score(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        alpha_spending_func=alpha_spending_func,
-        propensity_beta=intervene_beta,
-        propensity_intercept=intervene_intercept,
-        subgroup_func=subgroup_npv_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-        alt_overest=False, # check if we underestimated
-    )
-    score_cusum_int_res_df_under = score_cusum.do_monitor(
-        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
-    )
-    logging.info(
-        "%s fired? %s", score_cusum.label, CUSUM.is_fired_alarm(score_cusum_int_res_df_under)
-    )
-
-
+    
     res_df = pd.concat(
         [
             cusum_res_df,
