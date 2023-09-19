@@ -86,7 +86,7 @@ def main():
             propensity_beta=args.propensity_beta,
             propensity_intercept=args.propensity_intercept,
         )
-    
+
     # This is just a sanity check
     X, y, A = dg.generate(10)
 

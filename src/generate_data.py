@@ -39,12 +39,8 @@ def parse_args():
     parser.add_argument(
         "--target-beta", type=str, help="comma separated list of coefficients"
     )
-    parser.add_argument(
-        "--prob-shift", type=float, help="how much prob shifts"
-    )
-    parser.add_argument(
-        "--beta-shift-time", type=int, help="shift time"
-    )
+    parser.add_argument("--prob-shift", type=float, help="how much prob shifts")
+    parser.add_argument("--beta-shift-time", type=int, help="shift time")
     parser.add_argument(
         "--propensity-beta", type=str, help="comma separated list of coefficients"
     )
@@ -118,14 +114,16 @@ def main():
             subG=args.subG,
             shift_A=args.shift_A,
             x_mean=args.x_mean,
-            beta_shift_time=args.beta_shift_time)
+            beta_shift_time=args.beta_shift_time,
+        )
     else:
         dg = DataGenerator(
             source_beta=args.source_beta,
             target_beta=args.target_beta,
             intercept=args.intercept,
             x_mean=args.x_mean,
-            beta_shift_time=args.beta_shift_time)
+            beta_shift_time=args.beta_shift_time,
+        )
     dg.update_time(0, set_seed=True)
     output_data(dg, args, args.out_source_file)
 
@@ -135,6 +133,6 @@ def main():
         with open(args.out_data_gen_file, "wb") as f:
             pickle.dump(dg, f)
 
-    
+
 if __name__ == "__main__":
     main()

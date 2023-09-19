@@ -13,24 +13,21 @@ from matplotlib import pyplot as plt
 from cusums import CUSUM
 
 PROC_DICT = {
-    'naive': 'Naive',
-    'wCUSUM_intervene_subgroup2': '1I',
-    'wCUSUM_obs_subgroup2': '1O',
-    'wCUSUM_obs_subgroup6': '2O',
-    'wCUSUM_intervene_subgroup6': '2I',
-    'sCUSUM_less_obs': '3O',
-    'sCUSUM_less_intervene': '3I',
+    "naive": "Naive",
+    "wCUSUM_intervene_subgroup2": "1I",
+    "wCUSUM_obs_subgroup2": "1O",
+    "wCUSUM_obs_subgroup6": "2O",
+    "wCUSUM_intervene_subgroup6": "2I",
+    "sCUSUM_less_obs": "3O",
+    "sCUSUM_less_intervene": "3I",
 }
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description="aggregate result files, get power of methods"
     )
-    parser.add_argument(
-        "--shift-time",
-        type=int,
-        default=0
-    )
+    parser.add_argument("--shift-time", type=int, default=0)
     parser.add_argument(
         "--result-files",
         type=str,
@@ -62,6 +59,7 @@ def parse_args():
     args.result_files = args.result_files.split(",")
     return args
 
+
 def main():
     args = parse_args()
     logging.basicConfig(
@@ -75,32 +73,34 @@ def main():
         res = pd.read_csv(f)
         max_time = max(max_time, res.actual_iter.max() + 1)
         fire_dict = {
-            'procedure': [],
-            'alert_time': [],
+            "procedure": [],
+            "alert_time": [],
         }
         for procedure_name in res.label.unique():
             is_fired, fire_time = CUSUM.is_fired_alarm(res[res.label == procedure_name])
-            fire_dict['procedure'].append(procedure_name)
-            fire_dict['alert_time'].append(fire_time if is_fired else max_time * 2)
+            fire_dict["procedure"].append(procedure_name)
+            fire_dict["alert_time"].append(fire_time if is_fired else max_time * 2)
         fire_df = pd.DataFrame(fire_dict)
-        fire_df['seed'] = idx
+        fire_df["seed"] = idx
         all_res.append(fire_df)
     all_res = pd.concat(all_res).reset_index(drop=True)
-    all_res['procedure'] = all_res.procedure.replace(PROC_DICT)
-    all_res['alert_time'] = all_res.alert_time * args.batch_size
+    all_res["procedure"] = all_res.procedure.replace(PROC_DICT)
+    all_res["alert_time"] = all_res.alert_time * args.batch_size
     all_res.to_csv(args.csv_file, index=False)
 
     print(all_res)
-    sns.set_context('paper', font_scale=2)
+    sns.set_context("paper", font_scale=2)
     plt.figure(figsize=(8, 5))
     ax = sns.ecdfplot(
         data=all_res,
         x="alert_time",
-        hue='procedure',
+        hue="procedure",
         legend=True,
         linewidth=3,
     )
-    plt.axvline(x=args.batch_size * (args.shift_time + 1), color="black", linestyle="--")
+    plt.axvline(
+        x=args.batch_size * (args.shift_time + 1), color="black", linestyle="--"
+    )
     plt.xlim(0, max_time * args.batch_size + 1)
     ax.set_xlabel("Alarm time")
     plt.tight_layout()

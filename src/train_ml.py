@@ -129,15 +129,20 @@ def do_evaluate_model(mdl, testX, testY, plot_file: str = None, prefix: str = No
         plt.savefig(plot_file)
         print(plot_file)
 
+
 def do_evaluate_subgroup_npv(mdl, testX, testY, out_file: str = None):
     pred_prob = mdl.predict_proba(testX)[:, 1]
-    h = SubgroupDetector().detect_with_a(testX[:,:-1], testX[:,-1:], pred_prob.reshape((-1,1)))
-    npvs = np.sum((testY[:,np.newaxis] == 0) * h, axis=0)/np.sum(h, axis=0)
+    h = SubgroupDetector().detect_with_a(
+        testX[:, :-1], testX[:, -1:], pred_prob.reshape((-1, 1))
+    )
+    npvs = np.sum((testY[:, np.newaxis] == 0) * h, axis=0) / np.sum(h, axis=0)
     print("subgroup size", np.sum(h, axis=0))
-    res = pd.DataFrame({
-        "h_idx": np.arange(h.shape[1]),
-        "value": npvs,
-    })
+    res = pd.DataFrame(
+        {
+            "h_idx": np.arange(h.shape[1]),
+            "value": npvs,
+        }
+    )
     res["metric"] = "npv"
     logging.info(res)
     if out_file:
@@ -211,10 +216,18 @@ def main():
 
     # Evaluate the model on source data
     do_evaluate_model(
-        mdl, testX[testX[:,-1] == 0], testY[testX[:,-1] == 0], plot_file=args.plot_source_file, prefix="source"
+        mdl,
+        testX[testX[:, -1] == 0],
+        testY[testX[:, -1] == 0],
+        plot_file=args.plot_source_file,
+        prefix="source",
     )
     do_evaluate_model(
-        mdl, testX[testX[:,-1] == 1], testY[testX[:,-1] == 1], plot_file=args.plot_source_file, prefix="source"
+        mdl,
+        testX[testX[:, -1] == 1],
+        testY[testX[:, -1] == 1],
+        plot_file=args.plot_source_file,
+        prefix="source",
     )
     do_evaluate_subgroup_npv(mdl, testX, testY)
 
@@ -230,7 +243,6 @@ def main():
     logging.info("biased post")
     do_evaluate_subgroup_npv(mdl, target_testX, target_y)
 
-
     # Evaluate the model on unbiased target data
     logging.info("oracle pre")
     data_gen.update_time(0, set_seed=True)
@@ -239,12 +251,13 @@ def main():
     target_x, target_y, target_a = data_gen.generate(NOBS)
     target_testX = np.concatenate([target_x, target_a.reshape((-1, 1))], axis=1)
     do_evaluate_subgroup_npv(mdl, target_testX, target_y, args.perf_csv)
-    
+
     logging.info("oracle post")
     data_gen.update_time(10000, set_seed=True)
     target_x, target_y, target_a = data_gen.generate(NOBS)
     target_testX = np.concatenate([target_x, target_a.reshape((-1, 1))], axis=1)
     do_evaluate_subgroup_npv(mdl, target_testX, target_y)
-    
+
+
 if __name__ == "__main__":
     main()

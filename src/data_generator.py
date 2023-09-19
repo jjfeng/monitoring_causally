@@ -16,9 +16,9 @@ class DataGenerator:
         intercept,
         x_mean: np.ndarray,
         propensity_beta: np.ndarray = None,
-        propensity_intercept: float =0,
+        propensity_intercept: float = 0,
         beta_shift_time: int = None,
-        iter_seeds: np.ndarray= None,
+        iter_seeds: np.ndarray = None,
     ):
         self.source_beta = source_beta
         self.target_beta = target_beta
@@ -46,7 +46,7 @@ class DataGenerator:
         )
 
     def _get_prob(self, X, A):
-        interaction = (A[:, np.newaxis] -0.5) * 2 * X
+        interaction = (A[:, np.newaxis] - 0.5) * 2 * X
         a_x_xa = np.concatenate([A[:, np.newaxis], X, interaction], axis=1)
         beta = self.source_beta if not self.is_shifted else self.target_beta
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
@@ -105,7 +105,9 @@ class DataGenerator:
         Returns:
             _type_: _description_
         """
-        return np.random.normal(scale=self.scale, size=(num_obs, self.num_p)) + self.x_mean
+        return (
+            np.random.normal(scale=self.scale, size=(num_obs, self.num_p)) + self.x_mean
+        )
 
     def _generate_Y(self, X, A):
         probs = self._get_prob(X, A)
@@ -123,6 +125,7 @@ class DataGenerator:
         y = self._generate_Y(X, A)
         return X, y, A
 
+
 class SmallXShiftDataGenerator(DataGenerator):
     def __init__(
         self,
@@ -130,13 +133,13 @@ class SmallXShiftDataGenerator(DataGenerator):
         target_beta: np.ndarray,
         intercept,
         prob_shift: float,
-        shift_A:int,
+        shift_A: int,
         subG: int,
         x_mean: np.ndarray,
         propensity_beta: np.ndarray = None,
-        propensity_intercept: float =0,
+        propensity_intercept: float = 0,
         beta_shift_time: int = None,
-        iter_seeds: np.ndarray= None,
+        iter_seeds: np.ndarray = None,
     ):
         self.source_beta = source_beta
         self.target_beta = target_beta
@@ -170,10 +173,8 @@ class SmallXShiftDataGenerator(DataGenerator):
             # print("prev prob", prob[subG_mask.flatten() * (A == self.shift_A)])
             # print("prev prob", np.abs(prob[subG_mask.flatten() * (A == self.shift_A)] - 0.5).mean())
             # print("prev prob", np.median(np.abs(prob[subG_mask.flatten() * (A == self.shift_A)] - 0.5)))
-            delta_prob = self.prob_shift * subG_mask * (A[:,np.newaxis] == self.shift_A)
-            prob = to_safe_prob(
-                prob + delta_prob,
-                eps=0
+            delta_prob = (
+                self.prob_shift * subG_mask * (A[:, np.newaxis] == self.shift_A)
             )
+            prob = to_safe_prob(prob + delta_prob, eps=0)
         return prob
-        
