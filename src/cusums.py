@@ -244,38 +244,38 @@ class wCUSUM(CUSUM):
             data_gen.propensity_intercept = self.propensity_intercept
 
         # estimate class variance
-        subg_weights = np.ones(1)
-        if self.subgroup_detector is not None:
-            x, y, a = data_gen.generate(self.n_bootstrap, self.mdl)
-            pred_y_a01 = self._get_mdl_pred_a01(x)
-            pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
-            pred_class = (pred_y_a01 > self.threshold).astype(int)
-            h = self.subgroup_detector.detect(x, pred_y_a01)
-            ha = self.subgroup_detector.detect_with_a(x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
-            oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
-            oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
-                (1, -1, 1)
-            )
-            print("oracle_propensity", np.quantile(oracle_propensity, [0.001,0.01,0.1]))
-            assert np.max(oracle_propensity) < 1 and np.min(oracle_propensity) > 0
-            oracle_weight = 1 / oracle_propensity
-            
-            iter_ppv_stats, eff_obs_mask = self._get_iter_stat(
-                y.reshape((1, -1, 1)),
-                a[np.newaxis, :, np.newaxis],
-                pred_class=pred_class,
-                oracle_weight=oracle_weight,
-                h=h[np.newaxis, :, :],
-                ha=ha[np.newaxis, :, :],
-                collate=False,
-            )
-            self.alpha_scale = self.n_bootstrap/np.sum(eff_obs_mask)
-            iter_ppv_stats = iter_ppv_stats[0, eff_obs_mask.flatten()]
-            subg_var_ests = np.var(iter_ppv_stats, axis=0)
-            print(data_gen.propensity_beta, "subg_var_ests", subg_var_ests)
-            subg_weights = 1 / np.sqrt(subg_var_ests)
-            subg_weights[np.isinf(subg_weights)] = 0
-            print("subg_weights", subg_weights)
+        x, y, a = data_gen.generate(self.n_bootstrap, self.mdl)
+        pred_y_a01 = self._get_mdl_pred_a01(x)
+        pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
+        pred_class = (pred_y_a01 > self.threshold).astype(int)
+        h = self.subgroup_detector.detect(x, pred_y_a01)
+        ha = self.subgroup_detector.detect_with_a(x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
+        oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
+        oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
+            (1, -1, 1)
+        )
+        print("oracle_propensity", np.quantile(oracle_propensity, [0.001,0.01,0.1]))
+        assert np.max(oracle_propensity) < 1 and np.min(oracle_propensity) > 0
+        oracle_weight = 1 / oracle_propensity
+        
+        iter_ppv_stats, eff_obs_mask = self._get_iter_stat(
+            y.reshape((1, -1, 1)),
+            a[np.newaxis, :, np.newaxis],
+            pred_class=pred_class,
+            oracle_weight=oracle_weight,
+            h=h[np.newaxis, :, :],
+            ha=ha[np.newaxis, :, :],
+            collate=False,
+        )
+        self.alpha_scale = self.n_bootstrap/np.sum(eff_obs_mask)
+        iter_ppv_stats = iter_ppv_stats[0, eff_obs_mask.flatten()]
+        subg_var_ests = np.var(iter_ppv_stats, axis=0)
+        print(data_gen.propensity_beta, "subg_var_ests", subg_var_ests)
+
+        # calculate weights
+        subg_weights = 1 / np.sqrt(subg_var_ests)
+        subg_weights[np.isinf(subg_weights)] = 0
+        print("subg_weights", subg_weights)
         return data_gen, subg_weights.reshape((1, 1, -1))
 
     def _get_iter_stat(self, y, a, **kwargs):

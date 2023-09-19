@@ -4,6 +4,7 @@ THRES = 0.5
 GROUP_THRES = 0
 
 class SubgroupDetectorBase:
+    subg_treatments = None
     @staticmethod
     def detect(x, pred_y_a01):
         raise NotImplementedError()
