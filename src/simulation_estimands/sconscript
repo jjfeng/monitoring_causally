@@ -13,7 +13,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 65
-NUM_SEEDS = 10
+NUM_SEEDS = 4
 NUM_VAR = 2
 BATCH_SIZE = 40
 DELTA = 0.02
@@ -53,11 +53,21 @@ nest.add(
     label_func=lambda c: 'prob_shift%.2f' % c
 )
 
+
+nest.add(
+    'subG',
+    [
+        0,
+        # 1
+    ],
+    label_func=lambda c: 'subG%d' % c
+)
+
 nest.add(
     'shiftA',
     [
         0,
-        1
+        # 1
     ],
     label_func=lambda c: 'shiftA%d' % c
 )
@@ -87,6 +97,8 @@ def generate_data(env, outdir, c):
         'small_x_shift',
         '--shift-A',
         c['shiftA'],
+        '--subG',
+        c['subG'],
         '--source-beta',
         SOURCE_BETA,
         '--target-beta',
@@ -171,8 +183,8 @@ def monitor(env, outdir, c):
         '--data-gen ${SOURCES[0]}',
         '--mdl ${SOURCES[1]}',
         '--perf-targets ${SOURCES[2]}',
-        '--score-intervene-beta="-9"',
-        '--mean-intervene-beta="-2"',
+        '--score-intervene-beta="0"',
+        '--mean-intervene-beta="0"',
         '--intervene-intercept',
         0,
         '--alpha',

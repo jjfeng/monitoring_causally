@@ -1,5 +1,6 @@
 import copy
 import logging
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -147,7 +148,6 @@ class CUSUM_naive(CUSUM):
             iter_pv_stat, pv_incr = self._get_iter_stat(
                 y[np.newaxis, :, np.newaxis], a[np.newaxis,:,np.newaxis], pred_class=pred_class[np.newaxis,:,:]
             )
-            print("PV STAT", iter_pv_stat)
             pv_count += pv_incr
             pv_cumsums = (
                 np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
@@ -201,7 +201,7 @@ class wCUSUM(CUSUM):
         threshold: float,
         perf_targets_df: pd.DataFrame,
         alpha_spending_func,
-        subgroup_func,
+        subgroup_func: Tuple,
         treatment_subgroups:np.ndarray,
         propensity_beta: np.ndarray = None,
         propensity_intercept: float = 0,
@@ -250,7 +250,8 @@ class wCUSUM(CUSUM):
             pred_y_a01 = self._get_mdl_pred_a01(x)
             pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
             pred_class = (pred_y_a01 > self.threshold).astype(int)
-            h = self.subgroup_func(x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
+            h = self.subgroup_func[0](x, pred_y_a01)
+            ha = self.subgroup_func[1](x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
             oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
             oracle_propensity = (oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)).reshape(
                 (1, -1, 1)
@@ -265,6 +266,7 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis, :, :],
+                ha=ha[np.newaxis, :, :],
                 collate=False,
             )
             self.alpha_scale = self.n_bootstrap/np.sum(eff_obs_mask)
@@ -279,13 +281,11 @@ class wCUSUM(CUSUM):
     def _get_iter_stat(self, y, a, **kwargs):
         pred_class = kwargs["pred_class"][np.newaxis, :, self.treatment_subgroups]
         pred_mask = pred_class == self.class_mtr
+        # TODO: this is incorrect
         iter_stats = (
-            (self.perf_targets - (y == pred_class))
-            * kwargs["oracle_weight"]
-            * kwargs["h"]
-            * self.subg_weights
-        ) * pred_mask
-        nonzero_mask = np.ones(y.size, dtype=bool)
+            self.perf_targets - (y == pred_class) * kwargs["oracle_weight"] * kwargs["ha"]
+        ) * pred_mask * self.subg_weights * kwargs["h"]
+        nonzero_mask = (np.sum(kwargs["h"], axis=2) > 0).flatten()
         if not kwargs["collate"]:
             return iter_stats, nonzero_mask
         else:
@@ -309,7 +309,12 @@ class wCUSUM(CUSUM):
             pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
             pred_class = (pred_y_a01 > self.threshold).astype(int)
             h = (
-                self.subgroup_func(x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
+                self.subgroup_func[0](x, pred_y_a01)
+                if self.subgroup_func is not None
+                else np.ones(1)
+            )
+            ha = (
+                self.subgroup_func[1](x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)))
                 if self.subgroup_func is not None
                 else np.ones(1)
             )
@@ -329,9 +334,9 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis, :],
+                ha=ha[np.newaxis, :],
                 collate=True,
             )
-            print("iter_pv_stat", iter_pv_stat.shape)
             pv_count += pv_incr
             pv_cumsums = (
                 np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
@@ -346,7 +351,6 @@ class wCUSUM(CUSUM):
                 pv_cumsums[0, 0] / self.batch_size / (i + 1),
             )
 
-            print("more shape", a.shape, pred_y_a01.shape)
             thres = self.do_bootstrap_update(
                 pred_y_a01,
                 a[np.newaxis,:, np.newaxis],
@@ -354,6 +358,7 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis,:],
+                ha=ha[np.newaxis,:],
                 alt_overest=self.is_ppv,
                 collate=True,
             )
