@@ -504,12 +504,10 @@ class CUSUM_score(CUSUM):
             h = self.subgroup_func(
                 x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1)),
             )
-            print("H SUBGROUP", h.sum(axis=0))
 
             iter_score, score_incr = self._get_iter_stat(
                 y.reshape((1, -1, 1)), mdl_pred=pred_y_a[np.newaxis,:,np.newaxis], h=h[np.newaxis, :, :], collate=True
             )
-            print("iter_score", iter_score)
             score_count += score_incr
 
             score_cumsums = (
