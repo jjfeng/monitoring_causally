@@ -3,6 +3,7 @@ import numpy as np
 THRES = 0.5
 GROUP_THRES = 0
 
+AVG_TREATMENTS = np.array([0,1])
 def avg_npv_func(x, a, pred_y_a):
     pred_class = pred_y_a < THRES
     return np.concatenate(
@@ -13,6 +14,7 @@ def avg_npv_func(x, a, pred_y_a):
         axis=1,
     )
 
+SUBGROUP_TREATMENTS = np.array([0,1,0,0,1,1])
 def subgroup_npv_func(x, a, pred_y_a):
     pred_class = pred_y_a < THRES
     subg_mask = (np.abs(x[:,:1]) < 1) | (np.abs(x[:,1:2]) < 1)
