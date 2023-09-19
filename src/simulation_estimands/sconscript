@@ -13,7 +13,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 65
-NUM_SEEDS = 4
+NUM_SEEDS = 1
 NUM_VAR = 2
 BATCH_SIZE = 40
 DELTA = 0.02

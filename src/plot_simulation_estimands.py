@@ -13,13 +13,13 @@ from matplotlib import pyplot as plt
 from cusums import CUSUM
 
 PROC_DICT = {
-    'naive': '1A: Naive',
-    'wCUSUM_intervene_subgroup2': '1int: NPV int',
-    'wCUSUM_obs_subgroup2': '1obs: NPV obs',
-    'wCUSUM_obs_subgroup6': '2obs: NPV subgroup',
-    'wCUSUM_intervene_subgroup6': '2int: NPV subgroup',
-    'sCUSUM_less_obs': '3obs: Residuals',
-    'sCUSUM_less_intervene': '3int: Residuals',
+    'naive': 'Naive',
+    'wCUSUM_intervene_subgroup2': '1I',
+    'wCUSUM_obs_subgroup2': '1O',
+    'wCUSUM_obs_subgroup6': '2O',
+    'wCUSUM_intervene_subgroup6': '2I',
+    'sCUSUM_less_obs': '3O',
+    'sCUSUM_less_intervene': '3I',
 }
 
 def parse_args():

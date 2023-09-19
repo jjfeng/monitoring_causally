@@ -41,23 +41,27 @@ class CUSUM:
         return is_fired, fire_time
 
     def do_bootstrap_update(
-        self, pred_y_a: np.ndarray, eff_count: int, alt_overest: bool = False, **kwargs
+        self, pred_y_a01: np.ndarray, a:np.ndarray, eff_count: int, alt_overest: bool = False, **kwargs
     ):
         test_sign = -1 if alt_overest else 1
+        print("pred_y_a01", pred_y_a01.shape)
+        pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
+        print("pred_y_a", pred_y_a.shape)
         boot_ys = np.random.binomial(
             n=1,
-            p=pred_y_a.reshape((1, -1)) + test_sign * self.delta,
+            p=pred_y_a + test_sign * self.delta,
             size=(self.boot_cumsums.shape[0], pred_y_a.size)
             if self.boot_cumsums is not None
             else (self.n_bootstrap, pred_y_a.size),
         )
-        boot_iter_stat, _ = self._get_iter_stat(boot_ys[:, :, np.newaxis], **kwargs)
+        boot_iter_stat, _ = self._get_iter_stat(boot_ys[:, :, np.newaxis], a, **kwargs)
         self.boot_cumsums = (
             np.concatenate([self.boot_cumsums + boot_iter_stat, boot_iter_stat], axis=1)
             if self.boot_cumsums is not None
             else boot_iter_stat
         )
         boot_cusums = np.maximum(np.max(np.max(self.boot_cumsums, axis=1), axis=1), 0)
+        print("boot_cusums", boot_cusums.shape)
         # plt.hist(boot_cusums)
         # plt.show()
         
@@ -80,6 +84,16 @@ class CUSUM:
             thres = np.max(boot_cusums)
         assert thres >= 0
         return thres
+
+    def _get_mdl_pred_a01(self, x):
+        pred_y_a0 = self.mdl.predict_proba(
+            np.concatenate([x, np.zeros((x.shape[0], 1))], axis=1)
+        )[:, 1:]
+        pred_y_a1 = self.mdl.predict_proba(
+            np.concatenate([x, np.ones((x.shape[0], 1))], axis=1)
+        )[:, 1:]
+        return np.concatenate([pred_y_a0, pred_y_a1], axis=1)
+
 
 
 class CUSUM_naive(CUSUM):
@@ -110,14 +124,11 @@ class CUSUM_naive(CUSUM):
         self.is_ppv = metric == "ppv"
         self.class_mtr = 1 if self.is_ppv else 0
 
-    def _get_iter_stat(self, y, **kwargs):
+    def _get_iter_stat(self, y, a, **kwargs):
         pred_class = kwargs["pred_class"]
         pred_mask = pred_class == self.class_mtr
-        # TODO: replace with subgroup function
-        a_mask = np.concatenate([
-            kwargs["a"] == 0,
-            kwargs["a"] == 1], axis=2)
-        iter_stats = (self.perf_targets - (y == pred_class)) * pred_mask * a_mask
+        a_mask = np.concatenate([a == 0, a == 1], axis=2)
+        iter_stats = (self.perf_targets - (y == pred_class) * a_mask) * pred_mask
         return np.sum(iter_stats, axis=1, keepdims=True), pred_mask.sum()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
@@ -132,15 +143,14 @@ class CUSUM_naive(CUSUM):
             data_gen.update_time(i, set_seed=True)
             print("iter", i, pv_count)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
-            pred_y_a = self.mdl.predict_proba(
-                np.concatenate([x, a[:, np.newaxis]], axis=1)
-            )[:, 1]
-            pred_class = (pred_y_a > self.threshold).astype(int).reshape((1, -1))
+            pred_y_a01 = self._get_mdl_pred_a01(x)
+            pred_class = (pred_y_a01 > self.threshold).astype(int)
             actual_iters.append(i)
 
             iter_pv_stat, pv_incr = self._get_iter_stat(
-                y[np.newaxis, :, np.newaxis], a=a[np.newaxis,:,np.newaxis], pred_class=pred_class[:,:,np.newaxis]
+                y[np.newaxis, :, np.newaxis], a[np.newaxis,:,np.newaxis], pred_class=pred_class[np.newaxis,:,:]
             )
+            print("PV STAT", iter_pv_stat)
             pv_count += pv_incr
             pv_cumsums = (
                 np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
@@ -153,10 +163,10 @@ class CUSUM_naive(CUSUM):
             )
 
             thres = self.do_bootstrap_update(
-                pred_y_a,
+                pred_y_a01,
+                a[np.newaxis,:,np.newaxis],
                 pv_count,
-                a=a[np.newaxis,:,np.newaxis],
-                pred_class=pred_class[:, :, np.newaxis],
+                pred_class=pred_class[np.newaxis,:, :],
                 alt_overest=self.is_ppv,
             )
             dcl.append(thres)
