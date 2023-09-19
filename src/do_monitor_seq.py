@@ -223,59 +223,59 @@ def main():
         "wcusum_subg fired? %s", CUSUM.is_fired_alarm(wcusum_subg_res_df)
     )
 
-    # # WCUSUM with Intervention
-    # wcusum_int = wCUSUM(
-    #     mdl,
-    #     threshold=THRES,
-    #     batch_size=args.batch_size,
-    #     perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
-    #     propensity_beta=cusum_intervene_beta,
-    #     propensity_intercept=intervene_intercept,
-    #     subgroup_func=(avg_npv_func, avg_npv_a_func),
-    #     treatment_subgroups=AVG_TREATMENTS,
-    #     alpha_spending_func=alpha_spending_func,
-    #     delta=args.delta,
-    #     n_bootstrap=args.n_boot,
-    # )
-    # wcusum_int_res_df = wcusum_int.do_monitor(
-    #     num_iters=args.num_iters, data_gen=data_gen
-    # )
-    # logging.info("wcusum_int fired? %s", CUSUM.is_fired_alarm(wcusum_int_res_df))
+    # WCUSUM with Intervention
+    wcusum_int = wCUSUM(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
+        propensity_beta=cusum_intervene_beta,
+        propensity_intercept=intervene_intercept,
+        subgroup_func=(avg_npv_func, avg_npv_a_func),
+        treatment_subgroups=AVG_TREATMENTS,
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    wcusum_int_res_df = wcusum_int.do_monitor(
+        num_iters=args.num_iters, data_gen=data_gen
+    )
+    logging.info("wcusum_int fired? %s", CUSUM.is_fired_alarm(wcusum_int_res_df))
 
-    # # WCUSUM avg, no intervention, oracle propensity model
-    # wcusum = wCUSUM(
-    #     mdl,
-    #     threshold=THRES,
-    #     batch_size=args.batch_size,
-    #     perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
-    #     subgroup_func=(avg_npv_func, avg_npv_a_func),
-    #     treatment_subgroups=AVG_TREATMENTS,
-    #     alpha_spending_func=alpha_spending_func,
-    #     delta=args.delta,
-    #     n_bootstrap=args.n_boot,
-    # )
-    # wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    # logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))
+    # WCUSUM avg, no intervention, oracle propensity model
+    wcusum = wCUSUM(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
+        subgroup_func=(avg_npv_func, avg_npv_a_func),
+        treatment_subgroups=AVG_TREATMENTS,
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+    )
+    wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))
 
-    # # Naive CUSUM
-    # cusum = CUSUM_naive(
-    #     mdl,
-    #     threshold=THRES,
-    #     batch_size=args.batch_size,
-    #     perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
-    #     alpha_spending_func=alpha_spending_func,
-    #     delta=args.delta,
-    #     n_bootstrap=args.n_boot,
-    #     metric="npv",
-    # )
-    # cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    # logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
+    # Naive CUSUM
+    cusum = CUSUM_naive(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        metric="npv",
+    )
+    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
     
     res_df = pd.concat(
         [
-            # cusum_res_df,
-            # wcusum_res_df,
-            # wcusum_int_res_df,
+            cusum_res_df,
+            wcusum_res_df,
+            wcusum_int_res_df,
             wcusum_subg_res_df,
             wcusum_subg_int_res_df,
             score_cusum_res_df_under,

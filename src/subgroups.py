@@ -19,7 +19,7 @@ def avg_npv_a_func(x, a, pred_y_a):
 
 SUBGROUP_TREATMENTS = np.array([0,1,0,0,1,1])
 def _get_subgroup(X):
-    return ((X[:,:1] > -0.5) & (X[:,:1] < 2)) & (np.abs(X[:,1:2]) < 2.5)
+    return ((X[:,:1] > -1) & (X[:,:1] < 2)) & (np.abs(X[:,1:2]) < 2.5)
     # ((x[:,:1] > -1) & (x[:,:1] < 2)) & (np.abs(x[:,1:2]) < 2.5)
     #(np.abs(x[:,:1]) < 1) | (np.abs(x[:,1:2]) < 1)
 
