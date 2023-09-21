@@ -146,7 +146,7 @@ class CUSUM_naive(CUSUM):
         actual_iters = []
         for i in range(num_iters):
             data_gen.update_time(i, set_seed=True)
-            print("iter", i, pv_count)
+            # print("iter", i, pv_count)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a01 = self._get_mdl_pred_a01(x)
             pred_class_a01 = (pred_y_a01 > self.threshold).astype(int)
@@ -324,7 +324,7 @@ class wCUSUM(CUSUM):
         dcl = []
         for i in range(num_iters):
             data_gen.update_time(i, set_seed=True)
-            print("iter", i, len(pv_cusums))
+            # print("iter", i, len(pv_cusums))
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a01 = self._get_mdl_pred_a01(x)
             pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
@@ -527,7 +527,7 @@ class CUSUM_score(CUSUM):
         score_count = 0
         for i in range(num_iters):
             data_gen.update_time(i, set_seed=True)
-            print("iter", i)
+            # print("iter", i)
             logging.info("iter %d", i)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a01 = self._get_mdl_pred_a01(x)

@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 
 from matplotlib import pyplot as plt
@@ -97,7 +98,7 @@ class DataGenerator:
             return propensity
 
     def _generate_X(self, num_obs):
-        """Generate X but only positive covariates
+        """
 
         Args:
             num_obs (_type_): _description_
@@ -167,7 +168,7 @@ class SmallXShiftDataGenerator(DataGenerator):
             subG_mask = SubgroupDetector._get_subgroup(X)
             if self.subG == 0:
                 subG_mask = np.logical_not(subG_mask)
-            # print("PREVALENCE", subG_mask.mean())
+            logging.info("PREVALENCE of subgroup %f", subG_mask.mean())
             # print("PROP", self.propensity_beta)
             # print("A used", np.mean(A[subG_mask.flatten()]))
             # print("prev prob", prob[subG_mask.flatten() * (A == self.shift_A)])
