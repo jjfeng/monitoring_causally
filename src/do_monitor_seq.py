@@ -56,6 +56,11 @@ def parse_args():
         help="iters for monitoring",
     )
     parser.add_argument(
+        "--alternative",
+        type=str,
+        default="overest",
+        help="options: overest, underest, less_extreme")
+    parser.add_argument(
         "--metrics",
         type=str,
         default="npv",
@@ -75,7 +80,7 @@ def parse_args():
     parser.add_argument(
         "--n-boot",
         type=int,
-        default=10000,
+        default=101,
         help="num bootstrap seqs",
     )
     parser.add_argument(
@@ -154,19 +159,25 @@ def main():
     intervene_intercept = args.intervene_intercept
 
 
-    # Naive CUSUM
-    cusum = CUSUM_naive(
+    # SCORE
+    score_cusum = CUSUM_score(
         mdl,
         threshold=THRES,
         batch_size=args.batch_size,
-        perf_targets_df=perf_targets_df[perf_targets_df.h_idx == 0],
         alpha_spending_func=alpha_spending_func,
+        subgroup_detector=ScoreSubgroupDetector(),
         delta=args.delta,
         n_bootstrap=args.n_boot,
-        metrics=args.metrics,
+        alternative=args.alternative,  # check if we underestimated
     )
-    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
+    score_cusum_res_df_under = score_cusum.do_monitor(
+        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
+    )
+    logging.info(
+        "%s fired? %s",
+        score_cusum.label,
+        CUSUM.is_fired_alarm(score_cusum_res_df_under),
+    )
 
     # WCUSUM with subgroups, intervention, oracle propensity model
     wcusum_subg = wCUSUM(
@@ -189,26 +200,19 @@ def main():
         "wcusum_subg_int fired? %s", CUSUM.is_fired_alarm(wcusum_subg_int_res_df)
     )
 
-
-    # SCORE
-    score_cusum = CUSUM_score(
+    # Naive CUSUM
+    cusum = CUSUM_naive(
         mdl,
         threshold=THRES,
         batch_size=args.batch_size,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx == 0],
         alpha_spending_func=alpha_spending_func,
-        subgroup_detector=ScoreSubgroupDetector(),
         delta=args.delta,
         n_bootstrap=args.n_boot,
-        alt_overest=False,  # check if we underestimated
+        metrics=args.metrics,
     )
-    score_cusum_res_df_under = score_cusum.do_monitor(
-        num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
-    )
-    logging.info(
-        "%s fired? %s",
-        score_cusum.label,
-        CUSUM.is_fired_alarm(score_cusum_res_df_under),
-    )
+    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
 
     # SCORE -- intervention
     score_cusum = CUSUM_score(
@@ -221,7 +225,7 @@ def main():
         propensity_intercept=intervene_intercept,
         delta=args.delta,
         n_bootstrap=args.n_boot,
-        alt_overest=False,  # check if we underestimated
+        alternative=args.alternative,  # check if we underestimated
     )
     score_cusum_int_res_df_under = score_cusum.do_monitor(
         num_iters=args.num_iters, data_gen=copy.deepcopy(data_gen)
@@ -243,7 +247,7 @@ def main():
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
-        metric="npv",
+        metrics=args.metrics,
     )
     wcusum_subg_res_df = wcusum_subg.do_monitor(
         num_iters=args.num_iters, data_gen=data_gen
@@ -262,6 +266,7 @@ def main():
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
+        metrics=args.metrics,
     )
     wcusum_int_res_df = wcusum_int.do_monitor(
         num_iters=args.num_iters, data_gen=data_gen
@@ -278,6 +283,7 @@ def main():
         alpha_spending_func=alpha_spending_func,
         delta=args.delta,
         n_bootstrap=args.n_boot,
+        metrics=args.metrics,
     )
     wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))

@@ -53,10 +53,14 @@ class CUSUM:
         pred_y_a01: np.ndarray,
         a: np.ndarray,
         eff_count: int,
+        alt_overest: str = "less_extreme",
         **kwargs
     ):
         pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
-        pred_test_sign = ((pred_y_a > THRES) - 0.5) * 2
+        pred_test_sign = (
+            -1 if alt_overest == "overest" else
+            (1 if alt_overest == "underest" else -((pred_y_a > THRES) - 0.5) * 2)
+        )
         print("pred_y_a - pred_test_sign * self.delta", pred_y_a - pred_test_sign * self.delta)
         boot_ys = np.random.binomial(
             n=1,
@@ -128,7 +132,7 @@ class CUSUM_naive(CUSUM):
         self.delta = delta
         self.halt_when_fired = halt_when_fired
         self.metrics = metrics
-        self.class_mtrs = [CLASS_DICT[metric] for metric in self.metrics]
+        self.class_mtrs = np.array([CLASS_DICT[metric] for metric in self.metrics]).reshape((1,1,-1,1))
         print("self.class_mtrs", self.class_mtrs)
 
     def _get_iter_stat(self, y, a, **kwargs):
@@ -228,8 +232,8 @@ class wCUSUM(CUSUM):
         self.batch_size = batch_size
         self.perf_targets = np.array(
             [perf_targets_df.value[perf_targets_df.metric == metric] for metric in metrics]
-            ).reshape((1, 1, -1))
-        print("self.perf_targets", self.perf_targets)
+            )[np.newaxis, np.newaxis, :, :]
+        print("self.perf_targets", self.perf_targets.shape)
         self.alpha_spending_func = alpha_spending_func
         self.propensity_beta = propensity_beta
         self.propensity_intercept = propensity_intercept
@@ -239,7 +243,7 @@ class wCUSUM(CUSUM):
         self.halt_when_fired = halt_when_fired
         self.subg_weights = np.ones(1)
         self.metrics = metrics
-        self.class_mtrs = [CLASS_DICT[metric] for metric in self.metrics]
+        self.class_mtrs = np.array([CLASS_DICT[metric] for metric in self.metrics]).reshape((1,1,-1,1))
 
     @property
     def label(self):
@@ -267,36 +271,39 @@ class wCUSUM(CUSUM):
         oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
         oracle_propensity = (
             oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)
-        ).reshape((1, -1, 1))
+        ).reshape((1, -1, 1, 1))
         print("oracle_propensity", np.quantile(oracle_propensity, [0.001, 0.01, 0.1]))
         assert np.max(oracle_propensity) < 1 and np.min(oracle_propensity) > 0
         oracle_weight = 1 / oracle_propensity
 
         iter_ppv_stats, eff_obs_mask = self._get_iter_stat(
-            y.reshape((1, -1, 1)),
-            a[np.newaxis, :, np.newaxis],
+            y.reshape((1, -1, 1, 1)),
+            a[np.newaxis, :, np.newaxis, np.newaxis],
             pred_class=pred_class,
             oracle_weight=oracle_weight,
-            h=h[np.newaxis, :, :],
-            ha=ha[np.newaxis, :, :],
+            h=h[np.newaxis, :, np.newaxis, :],
+            ha=ha[np.newaxis, :, np.newaxis, :],
             collate=False,
         )
         self.alpha_scale = self.n_bootstrap / np.sum(eff_obs_mask)
         iter_ppv_stats = iter_ppv_stats[0, eff_obs_mask.flatten()]
         subg_var_ests = np.var(iter_ppv_stats, axis=0)
+        print("subg_var_ests", subg_var_ests.shape)
         print(data_gen.propensity_beta, "subg_var_ests", subg_var_ests)
 
         # calculate weights
         subg_weights = 1 / np.sqrt(subg_var_ests)
         subg_weights[np.isinf(subg_weights)] = 0
         print("subg_weights", subg_weights)
-        return data_gen, subg_weights.reshape((1, 1, -1))
+        return data_gen, subg_weights[np.newaxis, np.newaxis, :, :]
 
     def _get_iter_stat(self, y, a, **kwargs):
         pred_class = kwargs["pred_class"][
-            np.newaxis, :, self.subgroup_detector.subg_treatments
+            np.newaxis, :, np.newaxis, self.subgroup_detector.subg_treatments
         ]
         pred_mask = pred_class == self.class_mtrs
+        print("pred class", pred_class.shape, self.subg_weights.shape)
+        print("iter stat H", kwargs["ha"].shape, kwargs["h"].shape, kwargs["oracle_weight"].shape, y.shape)
         iter_stats = (
             (
                 self.perf_targets
@@ -306,7 +313,8 @@ class wCUSUM(CUSUM):
             * self.subg_weights
             * kwargs["h"]
         )
-        nonzero_mask = (np.sum(kwargs["h"], axis=2) > 0).flatten()
+        print("iter_stats", iter_stats.shape)
+        nonzero_mask = (np.sum(np.sum(kwargs["h"], axis=2), axis=2) > 0).flatten()
         if not kwargs["collate"]:
             return iter_stats, nonzero_mask
         else:
@@ -341,6 +349,7 @@ class wCUSUM(CUSUM):
                 if self.subgroup_detector is not None
                 else np.ones(1)
             )
+            print("HHHH", h.shape, ha.shape)
             oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
             oracle_propensity = (
                 oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)
@@ -349,12 +358,12 @@ class wCUSUM(CUSUM):
             # print("weight", oracle_weight, h.shape, self.subg_weights)
 
             iter_pv_stat, pv_incr = self._get_iter_stat(
-                y.reshape((1, -1, 1)),
-                a[np.newaxis, :, np.newaxis],
+                y.reshape((1, -1, 1, 1)),
+                a[np.newaxis, :, np.newaxis, np.newaxis],
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
-                h=h[np.newaxis, :],
-                ha=ha[np.newaxis, :],
+                h=h[np.newaxis, :, np.newaxis, :],
+                ha=ha[np.newaxis, :, np.newaxis, :],
                 collate=True,
             )
             pv_count += pv_incr
@@ -371,13 +380,12 @@ class wCUSUM(CUSUM):
 
             thres = self.do_bootstrap_update(
                 pred_y_a01,
-                a[np.newaxis, :, np.newaxis],
+                a[np.newaxis, :, np.newaxis, np.newaxis],
                 eff_count=pv_count,
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
-                h=h[np.newaxis, :],
-                ha=ha[np.newaxis, :],
-                alt_overest=self.is_ppv,
+                h=h[np.newaxis, :, np.newaxis, :],
+                ha=ha[np.newaxis, :, np.newaxis, :],
                 collate=True,
             )
             dcl.append(thres)
@@ -420,7 +428,7 @@ class CUSUM_score(CUSUM):
         propensity_intercept: float = 0,
         delta: float = 0,
         halt_when_fired: bool = True,
-        alt_overest: bool = True,
+        alternative: str = "overest",
     ):
         self.mdl = mdl
         self.threshold = threshold
@@ -432,13 +440,13 @@ class CUSUM_score(CUSUM):
         self.propensity_beta = propensity_beta
         self.propensity_intercept = propensity_intercept
         self.halt_when_fired = halt_when_fired
-        self.alt_overest = alt_overest
+        self.alternative = alternative
         self.subg_weights = np.ones(1)
 
     @property
     def label(self):
         return "sCUSUM_%s_%s" % (
-            ("greater" if self.alt_overest else "less"),
+            ("greater" if self.alternative == "overest" else ("less" if self.alternative == "underest" else "less_extreme")),
             ("intervene" if self.propensity_beta is not None else "obs"),
         )
 
@@ -452,23 +460,21 @@ class CUSUM_score(CUSUM):
         Returns:
             _type_: _description_
         """
-        test_sign = -1 if self.alt_overest else 1
+        pred_class = kwargs["mdl_pred"] > THRES
+        test_sign = (
+            -1 if self.alternative == "overest" else 
+            (1 if self.alternative == "underest" else -(pred_class - 0.5) * 2)
+        )
+        print(y.shape, kwargs["h"].shape, kwargs["mdl_pred"].shape, self.subg_weights.shape)
         iter_stats = (
             (y - (test_sign * self.delta + kwargs["mdl_pred"]))
             * kwargs["h"]
             * test_sign
             * self.subg_weights
         )
-        nonzero_mask = (np.sum(kwargs["h"], axis=2) > 0).flatten()
+        nonzero_mask = (np.sum(np.sum(kwargs["h"], axis=2), axis=2) > 0).flatten()
         print("num_nonzero", nonzero_mask.sum())
         if kwargs["collate"]:
-            if iter_stats.shape[0] == 1:
-                print(self.subg_weights)
-                print(
-                    "ITER MEAN",
-                    np.sum(iter_stats, axis=1, keepdims=True)
-                    / np.sum(kwargs["h"], axis=1, keepdims=True),
-                )
             return np.sum(iter_stats, axis=1, keepdims=True), nonzero_mask.sum()
         else:
             return iter_stats, nonzero_mask
@@ -497,9 +503,9 @@ class CUSUM_score(CUSUM):
         )
 
         iter_score_stats, eff_obs_mask = self._get_iter_stat(
-            y.reshape((1, -1, 1)),
-            mdl_pred=pred_y_a[np.newaxis, :, np.newaxis],
-            h=h[np.newaxis, :, :],
+            y.reshape((1, -1, 1, 1)),
+            mdl_pred=pred_y_a[np.newaxis, :, np.newaxis, np.newaxis],
+            h=h[np.newaxis, :, np.newaxis, :],
             collate=False,
         )
         self.alpha_scale = self.n_bootstrap / np.sum(eff_obs_mask)
@@ -511,7 +517,7 @@ class CUSUM_score(CUSUM):
         # remove subgroups if positivity violations are too severe
         subg_weights[np.isinf(subg_weights)] = 0
 
-        return data_gen, subg_weights.reshape((1, 1, -1)) / subg_weights.max()
+        return data_gen, subg_weights[np.newaxis, :] / subg_weights.max()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         data_gen, self.subg_weights = self._setup(data_gen)
@@ -539,9 +545,9 @@ class CUSUM_score(CUSUM):
             )
 
             iter_score, score_incr = self._get_iter_stat(
-                y.reshape((1, -1, 1)),
-                mdl_pred=pred_y_a[np.newaxis, :, np.newaxis],
-                h=h[np.newaxis, :, :],
+                y.reshape((1, -1, 1, 1)),
+                mdl_pred=pred_y_a[np.newaxis, :, np.newaxis, np.newaxis],
+                h=h[np.newaxis, :, np.newaxis, :],
                 collate=True,
             )
             score_count += score_incr
@@ -563,11 +569,11 @@ class CUSUM_score(CUSUM):
 
             thres = self.do_bootstrap_update(
                 pred_y_a01,
-                a=a[np.newaxis, :, np.newaxis],
+                a=a[np.newaxis, :, np.newaxis, np.newaxis],
                 eff_count=score_count,
-                alt_overest=self.alt_overest,
-                h=h[np.newaxis, :],
-                mdl_pred=pred_y_a[np.newaxis, :, np.newaxis],
+                alt_overest=self.alternative,
+                h=h[np.newaxis, np.newaxis, :],
+                mdl_pred=pred_y_a[np.newaxis, :, np.newaxis, np.newaxis],
                 collate=True,
             )
             dcl.append(thres)
