@@ -56,6 +56,11 @@ def parse_args():
         help="iters for monitoring",
     )
     parser.add_argument(
+        "--metrics",
+        type=str,
+        default="npv",
+        help="which metrics to monitor, comma separated")
+    parser.add_argument(
         "--alpha",
         type=float,
         default=0.1,
@@ -114,6 +119,7 @@ def parse_args():
     args.log_file = args.log_file_template.replace("JOB", str(args.job_idx))
     args.mdl_file = args.mdl_file_template.replace("JOB", str(args.job_idx))
     args.plot_file = args.plot_file_template.replace("JOB", str(args.job_idx))
+    args.metrics = args.metrics.split(",")
     return args
 
 
@@ -146,6 +152,21 @@ def main():
     cusum_intervene_beta = np.zeros(data_gen.propensity_beta.shape)
     cusum_intervene_beta[0] = args.mean_intervene_beta
     intervene_intercept = args.intervene_intercept
+
+    # Naive CUSUM
+    cusum = CUSUM_naive(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        metrics=args.metrics,
+    )
+    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
+    1/0
 
     # SCORE
     score_cusum = CUSUM_score(
@@ -258,20 +279,6 @@ def main():
     )
     wcusum_res_df = wcusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
     logging.info("wcusum fired? %s", CUSUM.is_fired_alarm(wcusum_res_df))
-
-    # Naive CUSUM
-    cusum = CUSUM_naive(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        perf_targets_df=perf_targets_df[perf_targets_df.h_idx < 2],
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-        metric="npv",
-    )
-    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
 
     res_df = pd.concat(
         [

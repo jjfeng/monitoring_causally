@@ -1,6 +1,5 @@
 """
-Compare performance of different estimands, for different propensities and magnitudes
-Only for NPV assessment
+Just for testing purposes. Check if the algorithms work
 """
 import os
 
@@ -17,7 +16,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 65
-NUM_SEEDS = 60
+NUM_SEEDS = 1
 NUM_VAR = 2
 BATCH_SIZE = 50
 DELTA = 0.02
@@ -191,6 +190,8 @@ def monitor(env, outdir, c):
         '--mean-intervene-beta="-2"',
         '--intervene-intercept',
         0,
+        '--metrics',
+        'npv,ppv',
         '--alpha',
         ALPHA,
         '--delta',

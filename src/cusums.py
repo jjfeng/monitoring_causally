@@ -132,6 +132,7 @@ class CUSUM_naive(CUSUM):
         self.halt_when_fired = halt_when_fired
         self.metrics = metrics
         self.class_mtrs = [CLASS_DICT[metric] for metric in self.metrics]
+        print("self.class_mtrs", self.class_mtrs)
 
     def _get_iter_stat(self, y, a, **kwargs):
         pred_class = kwargs["pred_class"]
