@@ -288,13 +288,11 @@ class wCUSUM(CUSUM):
         self.alpha_scale = self.n_bootstrap / np.sum(eff_obs_mask)
         iter_ppv_stats = iter_ppv_stats[0, eff_obs_mask.flatten()]
         subg_var_ests = np.var(iter_ppv_stats, axis=0)
-        print("subg_var_ests", subg_var_ests.shape)
         print(data_gen.propensity_beta, "subg_var_ests", subg_var_ests)
 
         # calculate weights
         subg_weights = 1 / np.sqrt(subg_var_ests)
         subg_weights[np.isinf(subg_weights)] = 0
-        print("subg_weights", subg_weights)
         return data_gen, subg_weights[np.newaxis, np.newaxis, :, :]
 
     def _get_iter_stat(self, y, a, **kwargs):
@@ -302,8 +300,6 @@ class wCUSUM(CUSUM):
             np.newaxis, :, np.newaxis, self.subgroup_detector.subg_treatments
         ]
         pred_mask = pred_class == self.class_mtrs
-        print("pred class", pred_class.shape, self.subg_weights.shape)
-        print("iter stat H", kwargs["ha"].shape, kwargs["h"].shape, kwargs["oracle_weight"].shape, y.shape)
         iter_stats = (
             (
                 self.perf_targets
@@ -349,11 +345,10 @@ class wCUSUM(CUSUM):
                 if self.subgroup_detector is not None
                 else np.ones(1)
             )
-            print("HHHH", h.shape, ha.shape)
             oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
             oracle_propensity = (
                 oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)
-            ).reshape((1, -1, 1))
+            ).reshape((1, -1, 1, 1))
             oracle_weight = 1 / oracle_propensity
             # print("weight", oracle_weight, h.shape, self.subg_weights)
 
