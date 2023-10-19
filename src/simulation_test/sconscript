@@ -18,7 +18,7 @@ nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 NUM_ADD_ITERS = 65
 NUM_SEEDS = 1
 NUM_VAR = 2
-BATCH_SIZE = 50
+BATCH_SIZE = 2
 DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
@@ -26,9 +26,9 @@ PROPENSITY_BETA_DICT = {
     "mild": '-2,0,0'
 }
 PROPENSITY_INTERCEPT = 0
-INTERCEPT = -0.5
-SOURCE_BETA = '0,0,0,0.5,-1'
-TARGET_BETA = '0,0,0,0.5,-1'
+INTERCEPT = 0
+SOURCE_BETA = '0,0,0,0.5,-1' # a_x_xa
+TARGET_BETA = '0,0,0,0.5,-1' # a_x_xa
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 
 nest.add(
@@ -42,8 +42,8 @@ nest.add(
 nest.add(
     'positivity',
     [
-        'severe',
-        # 'mild'
+        # 'severe',
+        'mild'
     ]
 )
 
@@ -51,7 +51,7 @@ nest.add(
     'prob_shift',
     [
         0.1,
-        0.2
+        # 0.2
     ],
     label_func=lambda c: 'prob_shift%.2f' % c
 )
@@ -70,7 +70,7 @@ nest.add(
     'shiftA',
     [
         0,
-        1
+        # 1
     ],
     label_func=lambda c: 'shiftA%d' % c
 )

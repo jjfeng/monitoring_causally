@@ -53,25 +53,25 @@ class CUSUM:
         pred_y_a01: np.ndarray,
         a: np.ndarray,
         eff_count: int,
-        alt_overest: bool = False,
         **kwargs
     ):
-        test_sign = -1 if alt_overest else 1
         pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
+        pred_test_sign = ((pred_y_a > THRES) - 0.5) * 2
+        print("pred_y_a - pred_test_sign * self.delta", pred_y_a - pred_test_sign * self.delta)
         boot_ys = np.random.binomial(
             n=1,
-            p=pred_y_a + test_sign * self.delta,
+            p=pred_y_a - pred_test_sign * self.delta,
             size=(self.boot_cumsums.shape[0], pred_y_a.size)
             if self.boot_cumsums is not None
             else (self.n_bootstrap, pred_y_a.size),
         )
-        boot_iter_stat, _ = self._get_iter_stat(boot_ys[:, :, np.newaxis], a, **kwargs)
+        boot_iter_stat, _ = self._get_iter_stat(boot_ys[:, :, np.newaxis, np.newaxis], a, **kwargs)
         self.boot_cumsums = (
             np.concatenate([self.boot_cumsums + boot_iter_stat, boot_iter_stat], axis=1)
             if self.boot_cumsums is not None
             else boot_iter_stat
         )
-        boot_cusums = np.maximum(np.max(np.max(self.boot_cumsums, axis=1), axis=1), 0)
+        boot_cusums = np.maximum(np.max(np.max(np.max(self.boot_cumsums, axis=1), axis=1), axis=1), 0)
         # plt.hist(boot_cusums)
         # plt.show()
 
@@ -120,12 +120,9 @@ class CUSUM_naive(CUSUM):
         self.mdl = mdl
         self.threshold = threshold
         self.batch_size = batch_size
-        self.perf_targets = (
-            perf_targets_df.value[perf_targets_df.metric.isin(metrics)]
-            .to_numpy()
-            .reshape((1, 1, 1, -1))
-        )
-        print("self.perf_targets", self.perf_targets)
+        self.perf_targets = np.array(
+            [perf_targets_df.value[perf_targets_df.metric == metric] for metric in metrics]
+            ).reshape((1, 1, -1, 1))
         self.alpha_spending_func = alpha_spending_func
         self.n_bootstrap = n_bootstrap
         self.delta = delta
@@ -139,6 +136,7 @@ class CUSUM_naive(CUSUM):
         pred_mask = pred_class == self.class_mtrs
         a_mask = np.concatenate([a == 0, a == 1], axis=2)
         iter_stats = (self.perf_targets - (y == pred_class) * a_mask) * pred_mask
+        print("iter stats shape", iter_stats.shape)
         return np.sum(iter_stats, axis=1, keepdims=True), pred_mask.sum()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
@@ -158,12 +156,10 @@ class CUSUM_naive(CUSUM):
             actual_iters.append(i)
 
             iter_pv_stat, pv_incr = self._get_iter_stat(
-                y[np.newaxis, :, np.newaxis],
-                a[np.newaxis, :, np.newaxis],
-                pred_class=pred_class_a01[np.newaxis, :, :],
+                y[np.newaxis, :, np.newaxis, np.newaxis],
+                a[np.newaxis, :, np.newaxis, np.newaxis],
+                pred_class=pred_class_a01[np.newaxis, :, :, np.newaxis],
             )
-            print(iter_pv_stat)
-            1/0
             pv_count += pv_incr
             pv_cumsums = (
                 np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
@@ -177,16 +173,16 @@ class CUSUM_naive(CUSUM):
 
             thres = self.do_bootstrap_update(
                 pred_y_a01,
-                a[np.newaxis, :, np.newaxis],
+                a[np.newaxis, :, np.newaxis, np.newaxis],
                 pv_count,
-                pred_class=pred_class_a01[np.newaxis, :, :],
-                alt_overest=self.is_ppv,
+                pred_class=pred_class_a01[np.newaxis, :, :, np.newaxis],
             )
             dcl.append(thres)
 
             logging.info("%s control_stat %f", self.label, pv_cusums[-1])
             logging.info("%s dcl %f", self.label, dcl[-1])
             fired = pv_cusums[-1] > dcl[-1]
+
             if fired and self.halt_when_fired:
                 break
 
@@ -225,16 +221,14 @@ class wCUSUM(CUSUM):
         n_bootstrap: int = 10000,
         delta: float = 0,
         halt_when_fired: bool = True,
-        metric: str = "npv",
+        metrics: list[str] = ["npv"],
     ):
         self.mdl = mdl
         self.threshold = threshold
         self.batch_size = batch_size
-        self.perf_targets = (
-            perf_targets_df.value[perf_targets_df.metric == metric]
-            .to_numpy()
-            .reshape((1, 1, -1))
-        )
+        self.perf_targets = np.array(
+            [perf_targets_df.value[perf_targets_df.metric == metric] for metric in metrics]
+            ).reshape((1, 1, -1))
         print("self.perf_targets", self.perf_targets)
         self.alpha_spending_func = alpha_spending_func
         self.propensity_beta = propensity_beta
@@ -244,9 +238,8 @@ class wCUSUM(CUSUM):
         self.n_bootstrap = n_bootstrap
         self.halt_when_fired = halt_when_fired
         self.subg_weights = np.ones(1)
-        self.metric = metric
-        self.is_ppv = metric == "ppv"
-        self.class_mtr = 1 if self.is_ppv else 0
+        self.metrics = metrics
+        self.class_mtrs = [CLASS_DICT[metric] for metric in self.metrics]
 
     @property
     def label(self):
@@ -303,7 +296,7 @@ class wCUSUM(CUSUM):
         pred_class = kwargs["pred_class"][
             np.newaxis, :, self.subgroup_detector.subg_treatments
         ]
-        pred_mask = pred_class == self.class_mtr
+        pred_mask = pred_class == self.class_mtrs
         iter_stats = (
             (
                 self.perf_targets
