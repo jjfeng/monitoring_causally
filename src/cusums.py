@@ -10,6 +10,11 @@ from matplotlib import pyplot as plt
 from subgroups import *
 from data_generator import DataGenerator
 
+CLASS_DICT = {
+    'npv': 0,
+    'ppv': 1
+}
+
 
 class CUSUM:
     alpha_scale = 1
@@ -110,28 +115,27 @@ class CUSUM_naive(CUSUM):
         n_bootstrap: int = 1000,
         delta: float = 0,
         halt_when_fired: bool = True,
-        metric: str = "npv",
+        metrics: list[str] = ["npv"],
     ):
         self.mdl = mdl
         self.threshold = threshold
         self.batch_size = batch_size
         self.perf_targets = (
-            perf_targets_df.value[perf_targets_df.metric == metric]
+            perf_targets_df.value[perf_targets_df.metric.isin(metrics)]
             .to_numpy()
-            .reshape((1, 1, -1))
+            .reshape((1, 1, 1, -1))
         )
         print("self.perf_targets", self.perf_targets)
         self.alpha_spending_func = alpha_spending_func
         self.n_bootstrap = n_bootstrap
         self.delta = delta
         self.halt_when_fired = halt_when_fired
-        self.metric = metric
-        self.is_ppv = metric == "ppv"
-        self.class_mtr = 1 if self.is_ppv else 0
+        self.metrics = metrics
+        self.class_mtrs = [CLASS_DICT[metric] for metric in self.metrics]
 
     def _get_iter_stat(self, y, a, **kwargs):
         pred_class = kwargs["pred_class"]
-        pred_mask = pred_class == self.class_mtr
+        pred_mask = pred_class == self.class_mtrs
         a_mask = np.concatenate([a == 0, a == 1], axis=2)
         iter_stats = (self.perf_targets - (y == pred_class) * a_mask) * pred_mask
         return np.sum(iter_stats, axis=1, keepdims=True), pred_mask.sum()
@@ -157,6 +161,8 @@ class CUSUM_naive(CUSUM):
                 a[np.newaxis, :, np.newaxis],
                 pred_class=pred_class_a01[np.newaxis, :, :],
             )
+            print(iter_pv_stat)
+            1/0
             pv_count += pv_incr
             pv_cumsums = (
                 np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
