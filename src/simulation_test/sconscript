@@ -16,14 +16,14 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 30
-NUM_SEEDS = 1
+NUM_SEEDS = 4
 NUM_VAR = 2
 BATCH_SIZE = 30
 DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
     "severe": '-6,0,0',
-    "mild": '0,0,0'
+    "mild": '-2,0,0'
 }
 PROPENSITY_INTERCEPT = 0
 INTERCEPT = 0
@@ -263,7 +263,7 @@ def aggregate(env, outdir, c):
         join(outdir, 'plot_power.png'),
         join(outdir, 'aggregate.csv'),
     ]
-    res_files = ','.join([join('simulation_estimands', f) for f in c['res_agg']])
+    res_files = ','.join([join('simulation_test', f) for f in c['res_agg']])
 
     cmd = [
         'python plot_simulation_estimands.py',
