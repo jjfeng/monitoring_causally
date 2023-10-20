@@ -15,10 +15,10 @@ localenv = env.Clone()
 # Set up state
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
-NUM_ADD_ITERS = 30
-NUM_SEEDS = 4
+NUM_ADD_ITERS = 50
+NUM_SEEDS = 20
 NUM_VAR = 2
-BATCH_SIZE = 30
+BATCH_SIZE = 25
 DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
@@ -70,7 +70,7 @@ nest.add(
     'shiftA',
     [
         0,
-        # 1
+        1
     ],
     label_func=lambda c: 'shiftA%d' % c
 )

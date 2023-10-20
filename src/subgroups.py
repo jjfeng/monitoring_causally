@@ -40,6 +40,8 @@ class SubgroupDetector(SubgroupDetectorBase):
 
     @staticmethod
     def _get_subgroup(X):
+        # x0 is -1 to 2, x1 is -2.5 to 2.5
+        # more people in this group will be treated with A=0
         return ((X[:, :1] > -1) & (X[:, :1] < 2)) & (np.abs(X[:, 1:2]) < 2.5)
 
     @staticmethod
