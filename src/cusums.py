@@ -269,9 +269,6 @@ class wCUSUM(CUSUM):
         pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
         pred_class = (pred_y_a01 > self.mdl.threshold).astype(int)
         h = self.subgroup_detector.detect(x)
-        # ha = self.subgroup_detector.detect_with_a(
-        #     x, a.reshape((-1, 1)) # pred_y_a.reshape((-1, 1))
-        # )
         oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
         oracle_propensity = (
             oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)
@@ -286,7 +283,6 @@ class wCUSUM(CUSUM):
             pred_class=pred_class,
             oracle_weight=oracle_weight,
             h=h[np.newaxis, :, np.newaxis, :],
-            # ha=ha[np.newaxis, :, np.newaxis, :],
             collate=False,
         )
         self.alpha_scale = self.n_bootstrap / np.sum(eff_obs_mask)
@@ -352,13 +348,6 @@ class wCUSUM(CUSUM):
                 if self.subgroup_detector is not None
                 else np.ones(1)
             )
-            # ha = (
-            #     self.subgroup_detector.detect_with_a(
-            #         x, a.reshape((-1, 1)) #, pred_y_a.reshape((-1, 1))
-            #     )
-            #     if self.subgroup_detector is not None
-            #     else np.ones(1)
-            # )
             oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
             oracle_propensity = (
                 oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)
@@ -372,7 +361,6 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis, :, np.newaxis, :],
-                # ha=ha[np.newaxis, :, np.newaxis, :],
                 collate=True,
             )
             pv_count += pv_incr
@@ -394,7 +382,6 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis, :, np.newaxis, :],
-                # ha=ha[np.newaxis, :, np.newaxis, :],
                 collate=True,
             )
             dcl.append(thres)
