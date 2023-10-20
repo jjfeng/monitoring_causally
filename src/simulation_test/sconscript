@@ -1,6 +1,5 @@
 """
-Compare performance of different estimands, for different propensities and magnitudes
-Only for NPV assessment
+Just for testing purposes. Check if the algorithms work
 """
 import os
 
@@ -16,10 +15,10 @@ localenv = env.Clone()
 # Set up state
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
-NUM_ADD_ITERS = 65
-NUM_SEEDS = 60
+NUM_ADD_ITERS = 50
+NUM_SEEDS = 20
 NUM_VAR = 2
-BATCH_SIZE = 50
+BATCH_SIZE = 25
 DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
@@ -27,9 +26,9 @@ PROPENSITY_BETA_DICT = {
     "mild": '-2,0,0'
 }
 PROPENSITY_INTERCEPT = 0
-INTERCEPT = -0.5
-SOURCE_BETA = '0,0,0,0.5,-1'
-TARGET_BETA = '0,0,0,0.5,-1'
+INTERCEPT = 0
+SOURCE_BETA = '0,0,0,0.5,-1' # a_x_xa
+TARGET_BETA = '0,0,0,0.5,-1' # a_x_xa
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 
 nest.add(
@@ -52,7 +51,7 @@ nest.add(
     'prob_shift',
     [
         0.1,
-        0.2
+        # 0.2
     ],
     label_func=lambda c: 'prob_shift%.2f' % c
 )
@@ -191,6 +190,10 @@ def monitor(env, outdir, c):
         '--mean-intervene-beta="-2"',
         '--intervene-intercept',
         0,
+        '--metrics',
+        'npv,ppv',
+        '--alternative',
+        'less_extreme',
         '--alpha',
         ALPHA,
         '--delta',
@@ -260,7 +263,7 @@ def aggregate(env, outdir, c):
         join(outdir, 'plot_power.png'),
         join(outdir, 'aggregate.csv'),
     ]
-    res_files = ','.join([join('simulation_estimands', f) for f in c['res_agg']])
+    res_files = ','.join([join('simulation_test', f) for f in c['res_agg']])
 
     cmd = [
         'python plot_simulation_estimands.py',

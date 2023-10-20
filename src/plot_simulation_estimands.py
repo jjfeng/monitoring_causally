@@ -20,6 +20,12 @@ PROC_DICT = {
     "wCUSUM_intervene_subgroup6": "2I",
     "sCUSUM_less_obs": "3O",
     "sCUSUM_less_intervene": "3I",
+    "wCUSUM_intervene_subgroup4": "1I",
+    "wCUSUM_obs_subgroup4": "1O",
+    "wCUSUM_obs_subgroup12": "2O",
+    "wCUSUM_intervene_subgroup12": "2I",
+    "sCUSUM_less_extreme_obs": "3O",
+    "sCUSUM_less_extreme_intervene": "3I",
 }
 
 
