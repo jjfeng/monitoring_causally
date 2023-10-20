@@ -20,11 +20,11 @@ class SubgroupDetectorSimple(SubgroupDetectorBase):
     subg_treatments = np.array([0, 1])
 
     @staticmethod
-    def detect(x, pred_y_a01):
-        return pred_y_a01 < THRES
+    def detect(x):
+        return np.ones((x.shape[0], 1))
 
     @staticmethod
-    def detect_with_a(x, a, pred_y_a):
+    def detect_with_a(x, a):
         # pred_class = pred_y_a > THRES
         return np.concatenate(
             [
@@ -71,7 +71,7 @@ class ScoreSubgroupDetector(SubgroupDetectorBase):
     subg_treatments = np.array([0, 1, 0, 0, 1, 1])
 
     @staticmethod
-    def detect(x, a, pred_y_a):
+    def detect(x, a):
         subg_mask = SubgroupDetector._get_subgroup(x)
         not_subg_mask = np.logical_not(subg_mask)
         return np.concatenate(
@@ -79,9 +79,9 @@ class ScoreSubgroupDetector(SubgroupDetectorBase):
                 (a == 0),
                 (a == 1),
                 subg_mask * (a == 0),
-                # not_subg_mask * (a == 0),
-                # subg_mask * (a == 1),
-                # not_subg_mask * (a == 1),
+                not_subg_mask * (a == 0),
+                subg_mask * (a == 1),
+                not_subg_mask * (a == 1),
             ],
             axis=1,
         )

@@ -483,7 +483,6 @@ class CUSUM_score(CUSUM):
             -1 if self.alternative == "overest" else 
             (1 if self.alternative == "underest" else -(pred_class - 0.5) * 2)
         )
-        residual = (y - (test_sign * self.delta + kwargs["mdl_pred"]))
         iter_stats = (
             (y - (test_sign * self.delta + kwargs["mdl_pred"]))
             * kwargs["h"]
@@ -519,7 +518,7 @@ class CUSUM_score(CUSUM):
         pred_y_a01 = self._get_mdl_pred_a01(x)
         pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
         h = self.subgroup_detector.detect(
-            x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1))
+            x, a.reshape((-1, 1))
         )
 
         iter_score_stats, eff_obs_mask = self._get_iter_stat(
@@ -560,7 +559,6 @@ class CUSUM_score(CUSUM):
             h = self.subgroup_detector.detect(
                 x,
                 a.reshape((-1, 1)),
-                pred_y_a.reshape((-1, 1)),
             )
 
             iter_score, score_incr = self._get_iter_stat(
