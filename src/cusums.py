@@ -131,7 +131,6 @@ class CUSUM_naive(CUSUM):
         self.halt_when_fired = halt_when_fired
         self.metrics = metrics
         self.class_mtrs = np.array([CLASS_DICT[metric] for metric in self.metrics]).reshape((1,1,-1,1))
-        print("self.class_mtrs", self.class_mtrs)
 
     def _get_iter_stat(self, y, a, **kwargs):
         """_summary_
@@ -172,7 +171,6 @@ class CUSUM_naive(CUSUM):
                 a[np.newaxis, :, np.newaxis, np.newaxis],
                 pred_class=pred_class_a01[np.newaxis, :, np.newaxis, :],
             )
-            print("iter_pv_stat", iter_pv_stat)
             pv_count += pv_incr
             pv_cumsums = (
                 np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
@@ -240,7 +238,6 @@ class wCUSUM(CUSUM):
         self.perf_targets = np.array(
             [perf_targets_df.value[perf_targets_df.metric == metric] for metric in metrics]
             )[np.newaxis, np.newaxis, :, :]
-        print("self.perf_targets", self.perf_targets.shape)
         self.alpha_spending_func = alpha_spending_func
         self.propensity_beta = propensity_beta
         self.propensity_intercept = propensity_intercept
@@ -275,7 +272,6 @@ class wCUSUM(CUSUM):
         # ha = self.subgroup_detector.detect_with_a(
         #     x, a.reshape((-1, 1)) # pred_y_a.reshape((-1, 1))
         # )
-        print("H", h.shape)
         oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
         oracle_propensity = (
             oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)
@@ -317,12 +313,6 @@ class wCUSUM(CUSUM):
         ]
         pred_mask = pred_class == self.class_mtrs
         a_mask = a == self.subgroup_detector.subg_treatments
-        print("a_mask", a_mask.shape)
-        print(self.perf_targets)
-        print(y.shape, pred_class.shape, kwargs["oracle_weight"].shape)
-        # print("HH", kwargs["ha"].shape, kwargs["h"].shape)
-        print("pred mask", pred_mask.shape)
-        print("sub weights", self.subg_weights.shape)
         iter_stats = (
             (
                 self.perf_targets
