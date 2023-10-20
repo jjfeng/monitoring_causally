@@ -165,6 +165,7 @@ class SmallXShiftDataGenerator(DataGenerator):
         prob = 1 / (1 + np.exp(-logit))
         # print("IS SHIFT?", self.is_shifted)
         if self.is_shifted:
+            print("SHIFTED", self.prob_shift)
             subG_mask = SubgroupDetector._get_subgroup(X)
             if self.subG == 0:
                 subG_mask = np.logical_not(subG_mask)
@@ -174,8 +175,9 @@ class SmallXShiftDataGenerator(DataGenerator):
             # print("prev prob", prob[subG_mask.flatten() * (A == self.shift_A)])
             # print("prev prob", np.abs(prob[subG_mask.flatten() * (A == self.shift_A)] - 0.5).mean())
             # print("prev prob", np.median(np.abs(prob[subG_mask.flatten() * (A == self.shift_A)] - 0.5)))
+            shift_sign = (prob > 0.5) * -1 + (prob < 0.5)
             delta_prob = (
-                self.prob_shift * subG_mask * (A[:, np.newaxis] == self.shift_A)
+                shift_sign * self.prob_shift * subG_mask * (A[:, np.newaxis] == self.shift_A)
             )
             prob = to_safe_prob(prob + delta_prob, eps=0)
         return prob

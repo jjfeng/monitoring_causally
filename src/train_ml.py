@@ -130,12 +130,12 @@ def do_evaluate_model(mdl, testX, testY, plot_file: str = None, prefix: str = No
         print(plot_file)
 
 def do_evaluate_subgroup_all(mdl, testX, testY):
-    res_npv = do_evaluate_subgroup(mdl, 0, testX, testY)
-    res_ppv = do_evaluate_subgroup(mdl, 1, testX, testY)
+    res_npv = do_evaluate_subgroup(mdl, False, testX, testY)
+    res_ppv = do_evaluate_subgroup(mdl, True, testX, testY)
     res = pd.concat([res_npv, res_ppv])
     return res
 
-def do_evaluate_subgroup(mdl, pred_label_match: int, testX, testY):
+def do_evaluate_subgroup(mdl, pred_label_match: bool, testX, testY):
     """Evaluate performance in subgroups
 
     Args:
@@ -145,16 +145,17 @@ def do_evaluate_subgroup(mdl, pred_label_match: int, testX, testY):
         testY (_type_): outcomes
         out_file (str, optional): file to output results in
     """
-    pred_prob = mdl.predict_proba(testX)[:, 1]
+    pred_prob = mdl.predict_proba(testX)[:, 1:]
+    pred_class = (pred_prob > mdl.threshold) == pred_label_match
     h = SubgroupDetector().detect_with_a(
-        testX[:, :-1], testX[:, -1:], pred_prob.reshape((-1, 1)), pred_label_match=pred_label_match,
+        testX[:, :-1], testX[:, -1:]
     )
-    npvs = np.sum((testY[:, np.newaxis] == pred_label_match) * h, axis=0) / np.sum(h, axis=0)
+    cond_accuracy = np.sum((testY[:, np.newaxis] == pred_label_match) * h * pred_class, axis=0) / np.sum(h * pred_class, axis=0)
     print("subgroup size", np.sum(h, axis=0))
     res = pd.DataFrame(
         {
             "h_idx": np.arange(h.shape[1]),
-            "value": npvs,
+            "value": cond_accuracy,
         }
     )
     res["metric"] = "npv" if pred_label_match == 0 else "ppv"
@@ -221,6 +222,7 @@ def main():
         trainX,
         trainY,
     )
+    mdl.threshold = THRES
     # logging.info(mdl.coef_)
     # logging.info(mdl.intercept_)
 

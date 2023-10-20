@@ -50,8 +50,8 @@ nest.add(
 nest.add(
     'prob_shift',
     [
-        0.1,
-        # 0.2
+        # 0.1,
+        0.2
     ],
     label_func=lambda c: 'prob_shift%.2f' % c
 )
@@ -192,6 +192,8 @@ def monitor(env, outdir, c):
         0,
         '--metrics',
         'npv,ppv',
+        '--alternative',
+        'less_extreme',
         '--alpha',
         ALPHA,
         '--delta',

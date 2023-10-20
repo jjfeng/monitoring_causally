@@ -59,11 +59,11 @@ class CUSUM:
         pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
         pred_test_sign = (
             1 if alt_overest == "overest" else
-            (-1 if alt_overest == "underest" else ((pred_y_a > self.threshold) - 0.5) * 2)
+            (-1 if alt_overest == "underest" else ((pred_y_a > self.mdl.threshold) - 0.5) * 2)
         )
         boot_ys = np.random.binomial(
             n=1,
-            p=pred_y_a + pred_test_sign * self.delta,
+            p=pred_y_a - pred_test_sign * self.delta,
             size=(self.boot_cumsums.shape[0], pred_y_a.size)
             if self.boot_cumsums is not None
             else (self.n_bootstrap, pred_y_a.size),
@@ -111,7 +111,6 @@ class CUSUM_naive(CUSUM):
     def __init__(
         self,
         mdl,
-        threshold: float,
         perf_targets_df: pd.DataFrame,
         alpha_spending_func,
         batch_size: int = 1,
@@ -121,7 +120,6 @@ class CUSUM_naive(CUSUM):
         metrics: list[str] = ["npv"],
     ):
         self.mdl = mdl
-        self.threshold = threshold
         self.batch_size = batch_size
         self.perf_targets = np.array(
             [perf_targets_df.value[perf_targets_df.metric == metric] for metric in metrics]
@@ -166,7 +164,7 @@ class CUSUM_naive(CUSUM):
             # print("iter", i, pv_count)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a01 = self._get_mdl_pred_a01(x)
-            pred_class_a01 = (pred_y_a01 > self.threshold).astype(int)
+            pred_class_a01 = (pred_y_a01 > self.mdl.threshold).astype(int)
             actual_iters.append(i)
 
             iter_pv_stat, pv_incr = self._get_iter_stat(
@@ -226,7 +224,6 @@ class wCUSUM(CUSUM):
     def __init__(
         self,
         mdl,
-        threshold: float,
         perf_targets_df: pd.DataFrame,
         alpha_spending_func,
         subgroup_detector: SubgroupDetectorBase,
@@ -239,7 +236,6 @@ class wCUSUM(CUSUM):
         metrics: list[str] = ["npv"],
     ):
         self.mdl = mdl
-        self.threshold = threshold
         self.batch_size = batch_size
         self.perf_targets = np.array(
             [perf_targets_df.value[perf_targets_df.metric == metric] for metric in metrics]
@@ -274,11 +270,12 @@ class wCUSUM(CUSUM):
         x, y, a = data_gen.generate(self.n_bootstrap, self.mdl)
         pred_y_a01 = self._get_mdl_pred_a01(x)
         pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
-        pred_class = (pred_y_a01 > self.threshold).astype(int)
-        h = self.subgroup_detector.detect(x, pred_y_a01)
-        ha = self.subgroup_detector.detect_with_a(
-            x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1))
-        )
+        pred_class = (pred_y_a01 > self.mdl.threshold).astype(int)
+        h = self.subgroup_detector.detect(x)
+        # ha = self.subgroup_detector.detect_with_a(
+        #     x, a.reshape((-1, 1)) # pred_y_a.reshape((-1, 1))
+        # )
+        print("H", h.shape)
         oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
         oracle_propensity = (
             oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)
@@ -293,13 +290,12 @@ class wCUSUM(CUSUM):
             pred_class=pred_class,
             oracle_weight=oracle_weight,
             h=h[np.newaxis, :, np.newaxis, :],
-            ha=ha[np.newaxis, :, np.newaxis, :],
+            # ha=ha[np.newaxis, :, np.newaxis, :],
             collate=False,
         )
         self.alpha_scale = self.n_bootstrap / np.sum(eff_obs_mask)
         iter_ppv_stats = iter_ppv_stats[0, eff_obs_mask.flatten()]
         subg_var_ests = np.var(iter_ppv_stats, axis=0)
-        print(data_gen.propensity_beta, "subg_var_ests", subg_var_ests)
 
         # calculate weights
         subg_weights = 1 / np.sqrt(subg_var_ests)
@@ -307,24 +303,41 @@ class wCUSUM(CUSUM):
         return data_gen, subg_weights[np.newaxis, np.newaxis, :, :]
 
     def _get_iter_stat(self, y, a, **kwargs):
+        """_summary_
+
+        Args:
+            y (_type_): _description_
+            a (_type_): _description_
+
+        Returns:
+            _type_: tuple, axis0 = bootstrap, axis1=batch size, axis2 = class prediction, axis3=subgroups
+        """
         pred_class = kwargs["pred_class"][
             np.newaxis, :, np.newaxis, self.subgroup_detector.subg_treatments
         ]
         pred_mask = pred_class == self.class_mtrs
+        a_mask = a == self.subgroup_detector.subg_treatments
+        print("a_mask", a_mask.shape)
+        print(self.perf_targets)
+        print(y.shape, pred_class.shape, kwargs["oracle_weight"].shape)
+        # print("HH", kwargs["ha"].shape, kwargs["h"].shape)
+        print("pred mask", pred_mask.shape)
+        print("sub weights", self.subg_weights.shape)
         iter_stats = (
             (
                 self.perf_targets
-                - (y == pred_class) * kwargs["oracle_weight"] * kwargs["ha"]
+                - (y == pred_class) * kwargs["oracle_weight"] * a_mask
             )
             * pred_mask
             * self.subg_weights
             * kwargs["h"]
         )
-        print("iter_stats", iter_stats.shape)
         nonzero_mask = (np.sum(np.sum(kwargs["h"], axis=2), axis=2) > 0).flatten()
         if not kwargs["collate"]:
             return iter_stats, nonzero_mask
         else:
+            if iter_stats.shape[0] == 1:
+                print("MEANANANA", np.mean(iter_stats, axis=1, keepdims=True))
             return np.sum(iter_stats, axis=1, keepdims=True), nonzero_mask.sum()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
@@ -343,19 +356,19 @@ class wCUSUM(CUSUM):
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
             pred_y_a01 = self._get_mdl_pred_a01(x)
             pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
-            pred_class = (pred_y_a01 > self.threshold).astype(int)
+            pred_class = (pred_y_a01 > self.mdl.threshold).astype(int)
             h = (
-                self.subgroup_detector.detect(x, pred_y_a01)
+                self.subgroup_detector.detect(x) #, pred_y_a01)
                 if self.subgroup_detector is not None
                 else np.ones(1)
             )
-            ha = (
-                self.subgroup_detector.detect_with_a(
-                    x, a.reshape((-1, 1)), pred_y_a.reshape((-1, 1))
-                )
-                if self.subgroup_detector is not None
-                else np.ones(1)
-            )
+            # ha = (
+            #     self.subgroup_detector.detect_with_a(
+            #         x, a.reshape((-1, 1)) #, pred_y_a.reshape((-1, 1))
+            #     )
+            #     if self.subgroup_detector is not None
+            #     else np.ones(1)
+            # )
             oracle_propensity_a1 = data_gen._get_propensity(x, mdl=self.mdl).flatten()
             oracle_propensity = (
                 oracle_propensity_a1 * a + (1 - oracle_propensity_a1) * (1 - a)
@@ -369,7 +382,7 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis, :, np.newaxis, :],
-                ha=ha[np.newaxis, :, np.newaxis, :],
+                # ha=ha[np.newaxis, :, np.newaxis, :],
                 collate=True,
             )
             pv_count += pv_incr
@@ -391,7 +404,7 @@ class wCUSUM(CUSUM):
                 pred_class=pred_class,
                 oracle_weight=oracle_weight,
                 h=h[np.newaxis, :, np.newaxis, :],
-                ha=ha[np.newaxis, :, np.newaxis, :],
+                # ha=ha[np.newaxis, :, np.newaxis, :],
                 collate=True,
             )
             dcl.append(thres)
@@ -400,6 +413,7 @@ class wCUSUM(CUSUM):
             logging.info("%s dcl %f", self.label, dcl[-1])
             fired = pv_cusums[-1] > dcl[-1]
             if fired and self.halt_when_fired:
+                logging.info("control_stat arg max %s", np.where(pv_cumsums == np.max(pv_cumsums)))
                 break
 
         pv_cusum_df = pd.DataFrame(
@@ -425,7 +439,6 @@ class CUSUM_score(CUSUM):
     def __init__(
         self,
         mdl,
-        threshold: float,
         alpha_spending_func,
         subgroup_detector: ScoreSubgroupDetector,
         batch_size: int = 1,
@@ -437,7 +450,6 @@ class CUSUM_score(CUSUM):
         alternative: str = "overest",
     ):
         self.mdl = mdl
-        self.threshold = threshold
         self.batch_size = batch_size
         self.alpha_spending_func = alpha_spending_func
         self.subgroup_detector = subgroup_detector
@@ -464,14 +476,14 @@ class CUSUM_score(CUSUM):
             a (_type_, optional): IGNORED. Here to unify calls. Defaults to None.
 
         Returns:
-            _type_: tuple, axis0 = bootstrap, axis1=batch size, axis2 = class prediction, axis3=subgroups
+            _type_: tuple, axis0 = bootstrap, axis1=batch size, axis2 = 1, axis3=subgroups
         """
-        pred_class = kwargs["mdl_pred"] > THRES
+        pred_class = kwargs["mdl_pred"] > self.mdl.threshold
         test_sign = (
             -1 if self.alternative == "overest" else 
             (1 if self.alternative == "underest" else -(pred_class - 0.5) * 2)
         )
-        print(y.shape, kwargs["h"].shape, kwargs["mdl_pred"].shape, self.subg_weights.shape)
+        residual = (y - (test_sign * self.delta + kwargs["mdl_pred"]))
         iter_stats = (
             (y - (test_sign * self.delta + kwargs["mdl_pred"]))
             * kwargs["h"]
@@ -480,6 +492,9 @@ class CUSUM_score(CUSUM):
         )
         nonzero_mask = (np.sum(np.sum(kwargs["h"], axis=-1), axis=-1) > 0).flatten()
         if kwargs["collate"]:
+            if iter_stats.shape[0] == 1:
+                base_iter_stats = kwargs["h"] * self.subg_weights
+                print("ITER STAT MEAN", np.mean(iter_stats, axis=1, keepdims=True)/np.abs(np.mean(base_iter_stats, axis=1, keepdims=True)))
             return np.sum(iter_stats, axis=1, keepdims=True), nonzero_mask.sum()
         else:
             return iter_stats, nonzero_mask
