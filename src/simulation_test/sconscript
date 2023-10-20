@@ -23,7 +23,7 @@ DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
     "severe": '-6,0,0',
-    "mild": '-2,0,0'
+    "mild": '0,0,0'
 }
 PROPENSITY_INTERCEPT = 0
 INTERCEPT = 0

@@ -58,13 +58,12 @@ class CUSUM:
     ):
         pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
         pred_test_sign = (
-            -1 if alt_overest == "overest" else
-            (1 if alt_overest == "underest" else -((pred_y_a > THRES) - 0.5) * 2)
+            1 if alt_overest == "overest" else
+            (-1 if alt_overest == "underest" else ((pred_y_a > self.threshold) - 0.5) * 2)
         )
-        print("pred_y_a - pred_test_sign * self.delta", pred_y_a - pred_test_sign * self.delta)
         boot_ys = np.random.binomial(
             n=1,
-            p=pred_y_a - pred_test_sign * self.delta,
+            p=pred_y_a + pred_test_sign * self.delta,
             size=(self.boot_cumsums.shape[0], pred_y_a.size)
             if self.boot_cumsums is not None
             else (self.n_bootstrap, pred_y_a.size),
@@ -126,7 +125,8 @@ class CUSUM_naive(CUSUM):
         self.batch_size = batch_size
         self.perf_targets = np.array(
             [perf_targets_df.value[perf_targets_df.metric == metric] for metric in metrics]
-            ).reshape((1, 1, -1, 1))
+            )
+        self.perf_targets = self.perf_targets[np.newaxis, np.newaxis, :, :]
         self.alpha_spending_func = alpha_spending_func
         self.n_bootstrap = n_bootstrap
         self.delta = delta
@@ -136,11 +136,21 @@ class CUSUM_naive(CUSUM):
         print("self.class_mtrs", self.class_mtrs)
 
     def _get_iter_stat(self, y, a, **kwargs):
+        """_summary_
+
+        Args:
+            y (_type_): _description_
+            a (_type_): _description_
+
+        Returns:
+            _type_: tuple, axis0 = bootstrap, axis1=batch size, axis2 = class prediction, axis3=subgroups (in this case the treatment)
+        """
         pred_class = kwargs["pred_class"]
         pred_mask = pred_class == self.class_mtrs
-        a_mask = np.concatenate([a == 0, a == 1], axis=2)
-        iter_stats = (self.perf_targets - (y == pred_class) * a_mask) * pred_mask
-        print("iter stats shape", iter_stats.shape)
+        a_mask = np.concatenate([a == 0, a == 1], axis=-1)
+        iter_stats = (self.perf_targets - (y == pred_class)) * pred_mask * a_mask
+        if iter_stats.shape[0] == 1:
+            print("MEANNNN", np.mean(iter_stats, axis=1, keepdims=True))
         return np.sum(iter_stats, axis=1, keepdims=True), pred_mask.sum()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
@@ -162,8 +172,9 @@ class CUSUM_naive(CUSUM):
             iter_pv_stat, pv_incr = self._get_iter_stat(
                 y[np.newaxis, :, np.newaxis, np.newaxis],
                 a[np.newaxis, :, np.newaxis, np.newaxis],
-                pred_class=pred_class_a01[np.newaxis, :, :, np.newaxis],
+                pred_class=pred_class_a01[np.newaxis, :, np.newaxis, :],
             )
+            print("iter_pv_stat", iter_pv_stat)
             pv_count += pv_incr
             pv_cumsums = (
                 np.concatenate([pv_cumsums + iter_pv_stat, iter_pv_stat])
@@ -179,7 +190,7 @@ class CUSUM_naive(CUSUM):
                 pred_y_a01,
                 a[np.newaxis, :, np.newaxis, np.newaxis],
                 pv_count,
-                pred_class=pred_class_a01[np.newaxis, :, :, np.newaxis],
+                pred_class=pred_class_a01[np.newaxis, :, np.newaxis, :],
             )
             dcl.append(thres)
 
@@ -453,7 +464,7 @@ class CUSUM_score(CUSUM):
             a (_type_, optional): IGNORED. Here to unify calls. Defaults to None.
 
         Returns:
-            _type_: _description_
+            _type_: tuple, axis0 = bootstrap, axis1=batch size, axis2 = class prediction, axis3=subgroups
         """
         pred_class = kwargs["mdl_pred"] > THRES
         test_sign = (
@@ -467,8 +478,7 @@ class CUSUM_score(CUSUM):
             * test_sign
             * self.subg_weights
         )
-        nonzero_mask = (np.sum(np.sum(kwargs["h"], axis=2), axis=2) > 0).flatten()
-        print("num_nonzero", nonzero_mask.sum())
+        nonzero_mask = (np.sum(np.sum(kwargs["h"], axis=-1), axis=-1) > 0).flatten()
         if kwargs["collate"]:
             return np.sum(iter_stats, axis=1, keepdims=True), nonzero_mask.sum()
         else:
@@ -511,8 +521,7 @@ class CUSUM_score(CUSUM):
         subg_weights = 1 / np.sqrt(subg_var_ests)
         # remove subgroups if positivity violations are too severe
         subg_weights[np.isinf(subg_weights)] = 0
-
-        return data_gen, subg_weights[np.newaxis, :] / subg_weights.max()
+        return data_gen, subg_weights[np.newaxis, np.newaxis, :] / subg_weights.max()
 
     def do_monitor(self, num_iters: int, data_gen: DataGenerator):
         data_gen, self.subg_weights = self._setup(data_gen)
@@ -567,7 +576,7 @@ class CUSUM_score(CUSUM):
                 a=a[np.newaxis, :, np.newaxis, np.newaxis],
                 eff_count=score_count,
                 alt_overest=self.alternative,
-                h=h[np.newaxis, np.newaxis, :],
+                h=h[np.newaxis, :, np.newaxis, :],
                 mdl_pred=pred_y_a[np.newaxis, :, np.newaxis, np.newaxis],
                 collate=True,
             )

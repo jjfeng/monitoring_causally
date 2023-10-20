@@ -80,7 +80,7 @@ def parse_args():
     parser.add_argument(
         "--n-boot",
         type=int,
-        default=101,
+        default=1000,
         help="num bootstrap seqs",
     )
     parser.add_argument(
@@ -158,7 +158,21 @@ def main():
     cusum_intervene_beta[0] = args.mean_intervene_beta
     intervene_intercept = args.intervene_intercept
 
-
+    # Naive CUSUM
+    cusum = CUSUM_naive(
+        mdl,
+        threshold=THRES,
+        batch_size=args.batch_size,
+        perf_targets_df=perf_targets_df[perf_targets_df.h_idx <= 1],
+        alpha_spending_func=alpha_spending_func,
+        delta=args.delta,
+        n_bootstrap=args.n_boot,
+        metrics=args.metrics,
+    )
+    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
+    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
+    1/0
+    
     # SCORE
     score_cusum = CUSUM_score(
         mdl,
@@ -199,20 +213,6 @@ def main():
     logging.info(
         "wcusum_subg_int fired? %s", CUSUM.is_fired_alarm(wcusum_subg_int_res_df)
     )
-
-    # Naive CUSUM
-    cusum = CUSUM_naive(
-        mdl,
-        threshold=THRES,
-        batch_size=args.batch_size,
-        perf_targets_df=perf_targets_df[perf_targets_df.h_idx == 0],
-        alpha_spending_func=alpha_spending_func,
-        delta=args.delta,
-        n_bootstrap=args.n_boot,
-        metrics=args.metrics,
-    )
-    cusum_res_df = cusum.do_monitor(num_iters=args.num_iters, data_gen=data_gen)
-    logging.info("cusum fired? %s", CUSUM.is_fired_alarm(cusum_res_df))
 
     # SCORE -- intervention
     score_cusum = CUSUM_score(
