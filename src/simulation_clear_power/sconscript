@@ -15,7 +15,7 @@ localenv = env.Clone()
 # Set up state
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
-NUM_ADD_ITERS = 40
+NUM_ADD_ITERS = 65
 NUM_SEEDS = 1
 NUM_VAR = 2
 BATCH_SIZE = 50
@@ -58,8 +58,8 @@ nest.add(
 nest.add(
     'prob_shift',
     [
-        0.1,
-        # 0.2
+        # 0.1,
+        0.2
     ],
     label_func=lambda c: 'prob_shift%.2f' % c
 )
@@ -270,6 +270,7 @@ def aggregate(env, outdir, c):
     targets = [
         join(outdir, 'plot_power.png'),
         join(outdir, 'aggregate.csv'),
+        join(outdir, 'agg_log.txt'),
     ]
     res_files = ','.join([join('simulation_clear_power', f) for f in c['res_agg']])
 
@@ -284,6 +285,7 @@ def aggregate(env, outdir, c):
         res_files,
         '--plot ${TARGETS[0]}',
         '--csv-file ${TARGETS[1]}',
+        '--log-file ${TARGETS[2]}',
     ]
     return env.Command(
         targets,

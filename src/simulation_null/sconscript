@@ -16,7 +16,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ITERS = 20
-NUM_SEEDS = 50
+NUM_SEEDS = 30
 NUM_VAR = 2
 BATCH_SIZE = 25
 ALPHA = 0.1
@@ -50,7 +50,7 @@ def generate_data(env, outdir, c):
         '--data-type',
         'simple',
         '--num-obs',
-        10000,
+        100000,
         '--seed-offset',
         0,
         '--x-mean',
@@ -103,7 +103,7 @@ def train_ml(env, outdir, c):
 nest.add(
     'delta',
     [
-        #0.01,
+        # 0.02,
         0
     ],
     label_func=lambda c: 'delta%.2f' % c
@@ -196,6 +196,7 @@ def aggregate(env, outdir, c):
     targets = [
         join(outdir, 'plot_power.png'),
         join(outdir, 'aggregate.csv'),
+        join(outdir, 'agg_log.txt'),
     ]
     res_files = ','.join([join('simulation_null', f) for f in c['res_agg']])
 
@@ -207,6 +208,7 @@ def aggregate(env, outdir, c):
         res_files,
         '--plot ${TARGETS[0]}',
         '--csv-file ${TARGETS[1]}',
+        '--log-file ${TARGETS[2]}',
     ]
     return env.Command(
         targets,

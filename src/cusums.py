@@ -76,12 +76,9 @@ class CUSUM:
             else boot_iter_stat
         )
         boot_cusums = np.maximum(np.max(np.max(np.max(self.boot_cumsums, axis=1), axis=1), axis=1), 0)
-        # plt.hist(boot_cusums)
-        # plt.show()
-
+        
         tot_alpha_spent = self.alpha_spending_func(eff_count) * self.alpha_scale
         quantile = self.n_bootstrap * (1 - tot_alpha_spent) / self.boot_cumsums.shape[0]
-        # print("quantile", quantile, eff_count, np.max(boot_cusums), tot_alpha_spent)
         if quantile < 1:
             thres = np.quantile(
                 boot_cusums,
@@ -94,6 +91,12 @@ class CUSUM:
             logging.info("alert: quantile %f", quantile)
             thres = np.max(boot_cusums)
         assert thres >= 0
+        print("quantile", quantile, eff_count, np.max(boot_cusums), self.boot_cumsums.shape, tot_alpha_spent)
+        # if tot_alpha_spent == 0.1:
+        #     plt.hist(boot_cusums)
+        #     plt.show()
+        #     1/0
+
         return thres
 
     def _get_mdl_pred_a01(self, x):
@@ -531,6 +534,12 @@ class CUSUM_score(CUSUM):
             # print("iter", i)
             logging.info("iter %d", i)
             x, y, a = data_gen.generate(self.batch_size, self.mdl)
+            # # HACK: ORACLE
+            # pred_y_a1 = data_gen._get_prob(x, np.ones(a.shape))
+            # pred_y_a0 = data_gen._get_prob(x, np.zeros(a.shape))
+            # pred_y_a01 = np.concatenate([pred_y_a0, pred_y_a1], axis=1)
+            # print("HACK ORACLE")
+            # ACTUAL
             pred_y_a01 = self._get_mdl_pred_a01(x)
             pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
             h = self.subgroup_detector.detect(

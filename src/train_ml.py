@@ -187,7 +187,7 @@ def main():
     if args.model_type == "GradientBoostingClassifier":
         base_mdl = GradientBoostingClassifier()
     elif args.model_type == "RandomForestClassifier":
-        base_mdl = RandomForestClassifier(n_estimators=30, n_jobs=1)
+        base_mdl = RandomForestClassifier(n_jobs=-1, max_features=X.shape[1])
     elif args.model_type == "LogisticRegression":
         base_mdl = LogisticRegression(penalty="l1", solver="saga")
     else:
