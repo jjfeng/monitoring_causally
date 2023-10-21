@@ -19,7 +19,7 @@ def main(args=sys.argv[1:]):
         )
     else:
         output = subprocess.check_output(
-            "qsub -cwd -pe smp 1 -l h_rt=00:20:00 run_script.sh %s" % run_line,
+            "qsub -cwd -pe smp 1 -l h_rt=00:59:00 run_script.sh %s" % run_line,
             stderr=subprocess.STDOUT,
             shell=True,
         )
