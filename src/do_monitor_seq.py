@@ -1,5 +1,6 @@
 import os
 import copy
+import time
 import argparse
 import pickle
 import logging
@@ -137,7 +138,7 @@ def main():
     )
     logging.info(args)
     logging.info("SEED %d", seed)
-
+    
     with open(args.data_gen_file, "rb") as f:
         data_gen = pickle.load(f)
         data_gen.iter_seeds = np.random.randint(0, high=100000, size=args.num_iters * 2)
@@ -146,7 +147,8 @@ def main():
     perf_targets_df = pd.read_csv(args.perf_targets_csv)
     perf_targets_df["value"] = perf_targets_df.value - args.delta
     print("perf_targets", perf_targets_df)
-
+    st_time = time.time()
+    
     # uniform alpha spending function
     alpha_spending_func = lambda eff_count: min(
         1, args.alpha / args.num_iters / args.batch_size * eff_count
@@ -301,6 +303,7 @@ def main():
     plt.savefig(args.plot_file)
     print(args.plot_file)
 
+    logging.info("TOTAL TIME %s", time.time() - st_time)
 
 if __name__ == "__main__":
     main()
