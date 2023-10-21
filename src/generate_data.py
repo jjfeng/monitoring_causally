@@ -6,7 +6,7 @@ import argparse
 import pandas as pd
 import numpy as np
 
-from data_generator import DataGenerator, SmallXShiftDataGenerator, SymSmallXShiftDataGenerator
+from data_generator import *
 
 
 def parse_args():
@@ -30,7 +30,7 @@ def parse_args():
     )
     parser.add_argument("--x-mean", type=str, help="x mean")
     parser.add_argument("--intercept", type=float, help="intercept")
-    parser.add_argument("--shift-type", type=str, choices=["none", "small_x_shift", "sym_small_x_shift"])
+    parser.add_argument("--shift-type", type=str, choices=["none", "small_x_shift", "sym_small_x_shift", "sym_misspec_subG_shift"])
     parser.add_argument("--shift-A", type=int)
     parser.add_argument("--subG", type=int)
     parser.add_argument(
@@ -104,7 +104,18 @@ def main():
     )
     logging.info(args)
 
-    if args.shift_type == "sym_small_x_shift":
+    if args.shift_type == "sym_misspec_subG_shift":
+        dg = SymMisspecShiftDataGenerator(
+            source_beta=args.source_beta,
+            target_beta=args.target_beta,
+            intercept=args.intercept,
+            prob_shift=args.prob_shift,
+            subG=args.subG,
+            shift_A=args.shift_A,
+            x_mean=args.x_mean,
+            beta_shift_time=args.beta_shift_time,
+        )
+    elif args.shift_type == "sym_small_x_shift":
         dg = SymSmallXShiftDataGenerator(
             source_beta=args.source_beta,
             target_beta=args.target_beta,

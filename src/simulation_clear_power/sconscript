@@ -35,7 +35,8 @@ X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 nest.add(
     'shift_type',
     [
-        'sym_small_x_shift'
+        'sym_small_x_shift',
+        # 'sym_misspec_subG_shift'
     ]
 )
 
