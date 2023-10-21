@@ -125,7 +125,7 @@ def monitor(env, outdir, c):
     cmd = [
         'python run_script.py',
         localenv['cluster'],
-        '${TARGETS[0]}',
+        '${TARGETS[1]}',
         'do_monitor_seq.py',
         '--data-gen ${SOURCES[0]}',
         '--mdl ${SOURCES[1]}',
