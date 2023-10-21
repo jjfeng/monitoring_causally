@@ -28,21 +28,18 @@ PROPENSITY_BETA_DICT = {
 PROPENSITY_INTERCEPT = 0
 INTERCEPT = -0.5
 BETA_DICT = {
-    'all_shift': {
-        'source': '0.5,0,0,0.5,-1',  # a_x_xa
-        'target': '0.5,0,0,0.5,-1',  # a_x_xa
-    },
-    'sym_small_x_shift': {
-        'source': '0,0,0,0.5,-1',
-        'target': '0,0,0,0.5,-1',
-    },
-    'sym_misspec_subG_shift': {
-        'source': '0,0,0,0.5,-1',
-        'target': '0,0,0,0.5,-1',
-    },
+    'A0_better': '0.5,0,0,0.5,-1', # a_x_xa
+    'avg_same': '0,0,0,0.5,-1'
 }
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 
+nest.add(
+    'beta',
+    [
+        'A0_better',
+        # 'avg_same',
+    ]
+)
 
 nest.add(
     'shift_type',
@@ -125,9 +122,9 @@ def generate_data(env, outdir, c):
         '--subG',
         c['subG'],
         '--source-beta',
-        BETA_DICT[c['shift_type']]['source'],
+        BETA_DICT[c['beta']],
         '--target-beta',
-        BETA_DICT[c['shift_type']]['target'],
+        BETA_DICT[c['beta']],
         '--prob-shift',
         c['prob_shift'],
         "--propensity-beta=%s" % PROPENSITY_BETA_DICT[c['positivity']],
