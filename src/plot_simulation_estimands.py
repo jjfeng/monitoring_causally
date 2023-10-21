@@ -83,11 +83,13 @@ def main():
         fire_dict = {
             "procedure": [],
             "alert_time": [],
+            "is_fired": [],
         }
         for procedure_name in res.label.unique():
             is_fired, fire_time = CUSUM.is_fired_alarm(res[res.label == procedure_name])
             fire_dict["procedure"].append(procedure_name)
             fire_dict["alert_time"].append(fire_time if is_fired else max_time * 2)
+            fire_dict["is_fired"].append(is_fired)
         fire_df = pd.DataFrame(fire_dict)
         fire_df["seed"] = idx
         all_res.append(fire_df)
@@ -95,6 +97,8 @@ def main():
     all_res["procedure"] = all_res.procedure.replace(PROC_DICT)
     all_res["alert_time"] = all_res.alert_time * args.batch_size
     all_res.to_csv(args.csv_file, index=False)
+
+    print(all_res.groupby('procedure').mean())
 
     uniq_procedures = all_res.procedure.drop_duplicates()
     print("uniq_procedures", uniq_procedures)
