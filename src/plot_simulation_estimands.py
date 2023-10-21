@@ -48,6 +48,11 @@ def parse_args():
         default=False
     )
     parser.add_argument(
+        "--max-time",
+        type=int,
+        default=1,
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=1,
@@ -78,13 +83,11 @@ def main():
     )
     logging.info(args)
 
-    max_time = 0
     all_res = []
     for idx, f in enumerate(args.result_files):
         if not os.path.exists(f):
             continue
         res = pd.read_csv(f)
-        max_time = max(max_time, res.actual_iter.max() + 1)
         fire_dict = {
             "procedure": [],
             "alert_time": [],
@@ -93,7 +96,7 @@ def main():
         for procedure_name in res.label.unique():
             is_fired, fire_time = CUSUM.is_fired_alarm(res[res.label == procedure_name])
             fire_dict["procedure"].append(procedure_name)
-            fire_dict["alert_time"].append(fire_time if is_fired else max_time * 2)
+            fire_dict["alert_time"].append(fire_time if is_fired else args.max_time * args.batch_size * 2)
             fire_dict["is_fired"].append(is_fired)
         fire_df = pd.DataFrame(fire_dict)
         fire_df["seed"] = idx
@@ -139,7 +142,7 @@ def main():
         plt.axvline(
             x=args.batch_size * (args.shift_time + 1), color="black", linestyle="--"
         )
-    plt.xlim(0, max_time * args.batch_size + 1)
+    plt.xlim(0, args.max_time * args.batch_size + 1)
     
     ax.set_xlabel("Alarm time")
     plt.tight_layout()
