@@ -117,7 +117,7 @@ class CUSUM_naive(CUSUM):
         n_bootstrap: int = 1000,
         delta: float = 0,
         halt_when_fired: bool = True,
-        metrics: list[str] = ["npv"],
+        metrics: list = ["npv"],
     ):
         self.mdl = mdl
         self.batch_size = batch_size
@@ -231,7 +231,7 @@ class wCUSUM(CUSUM):
         n_bootstrap: int = 10000,
         delta: float = 0,
         halt_when_fired: bool = True,
-        metrics: list[str] = ["npv"],
+        metrics: list = ["npv"],
     ):
         self.mdl = mdl
         self.batch_size = batch_size
