@@ -16,7 +16,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 40
-NUM_SEEDS = 3
+NUM_SEEDS = 1
 NUM_VAR = 2
 BATCH_SIZE = 50
 DELTA = 0.02
@@ -275,6 +275,7 @@ def aggregate(env, outdir, c):
 
     cmd = [
         'python plot_simulation_estimands.py',
+        '--omit-naive',
         '--shift-time',
         c['beta_shift_time'],
         '--batch-size',

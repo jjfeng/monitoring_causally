@@ -43,6 +43,11 @@ def parse_args():
         action="store_true",
     )
     parser.add_argument(
+        "--omit-naive",
+        action='store_true',
+        default=False
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=1,
@@ -103,6 +108,8 @@ def main():
     uniq_procedures = all_res.procedure.drop_duplicates()
     print("uniq_procedures", uniq_procedures)
 
+    if args.omit_naive:
+        all_res = all_res[all_res.procedure != 'Naive']
     print(all_res)
     sns.set_context("paper", font_scale=2)
     plt.figure(figsize=(8, 5))
