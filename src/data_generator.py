@@ -201,11 +201,26 @@ class SymMisspecShiftDataGenerator(SmallXShiftDataGenerator):
         logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
         prob = 1 / (1 + np.exp(-logit))
         if self.is_shifted:
-            subG_mask = ((X[:, :1] > -0.5) & (X[:, :1] < 1.5)) & (np.abs(X[:, 1:2]) < 2)
+            subG_mask = ((X[:, :1] > -1.5) & (X[:, :1] < 1.5)) & (np.abs(X[:, 1:2]) < 1.5)
             logging.info("PREVALENCE of subgroup %f", subG_mask.mean())
             shift_sign = (prob > 0.5) * -1 + (prob < 0.5)
             delta_prob = (
                 shift_sign * self.prob_shift * subG_mask * (A[:, np.newaxis] == self.shift_A)
+            )
+            prob = to_safe_prob(prob + delta_prob, eps=0)
+        return prob
+
+class ShiftAllDataGenerator(SmallXShiftDataGenerator):
+    def _get_prob(self, X, A):
+        interaction = (A[:, np.newaxis] - 0.5) * 2 * X
+        a_x_xa = np.concatenate([A[:, np.newaxis], X, interaction], axis=1)
+        beta = self.source_beta if not self.is_shifted else self.target_beta
+        logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
+        prob = 1 / (1 + np.exp(-logit))
+        if self.is_shifted:
+            shift_sign = (prob > 0.5) * -1 + (prob < 0.5)
+            delta_prob = (
+                shift_sign * self.prob_shift * (A[:, np.newaxis] == self.shift_A)
             )
             prob = to_safe_prob(prob + delta_prob, eps=0)
         return prob
