@@ -123,9 +123,10 @@ def main():
         legend=True
     )
 
-    plt.axvline(
-        x=args.batch_size * (args.shift_time + 1), color="black", linestyle="--"
-    )
+    if args.shift_time > 0:
+        plt.axvline(
+            x=args.batch_size * (args.shift_time + 1), color="black", linestyle="--"
+        )
     plt.xlim(0, max_time * args.batch_size + 1)
     
     ax.set_xlabel("Alarm time")

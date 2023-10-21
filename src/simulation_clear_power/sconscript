@@ -1,0 +1,290 @@
+"""
+Power simulations for CLeaR submission
+"""
+import os
+
+from os.path import join
+from nestly.scons import SConsWrap
+from nestly import Nest
+from SCons.Script import Environment, Command, AddOption
+import numpy as np
+
+Import('env')
+localenv = env.Clone()
+
+# Set up state
+nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
+
+NUM_ADD_ITERS = 40
+NUM_SEEDS = 3
+NUM_VAR = 2
+BATCH_SIZE = 50
+DELTA = 0.02
+ALPHA = 0.1
+PROPENSITY_BETA_DICT = {
+    "high": '-6,0,0',
+    # "mild": '-2,0,0'
+}
+PROPENSITY_INTERCEPT = 0
+INTERCEPT = -0.5
+SOURCE_BETA = '0,0,0,0.5,-1' # a_x_xa
+TARGET_BETA = '0,0,0,0.5,-1' # a_x_xa
+X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
+
+
+nest.add(
+    'shift_type',
+    [
+        'sym_small_x_shift'
+    ]
+)
+
+nest.add(
+    'beta_shift_time',
+    [
+        10
+    ],
+    label_func=lambda c: 'shift_time%d' % c
+)
+
+nest.add(
+    'positivity',
+    [
+        'high',
+        # 'mild'
+    ]
+)
+
+nest.add(
+    'prob_shift',
+    [
+        0.1,
+        # 0.2
+    ],
+    label_func=lambda c: 'prob_shift%.2f' % c
+)
+
+
+nest.add(
+    'subG',
+    [
+        # 0,
+        1
+    ],
+    label_func=lambda c: 'subG%d' % c
+)
+
+nest.add(
+    'shiftA',
+    [
+        0,
+        1
+    ],
+    label_func=lambda c: 'shiftA%d' % c
+)
+
+@nest.add_target_with_env(localenv)
+def generate_data(env, outdir, c):
+    targets = [
+        join(outdir, 'source_data.csv'),
+        join(outdir, 'data_gen.pkl'),
+    ]
+
+    cmd = [
+        'python',
+        'generate_data.py',
+        '--data-type',
+        'simple',
+        '--num-obs',
+        10000,
+        '--seed-offset',
+        0,
+        '--beta-shift-time',
+        c['beta_shift_time'],
+        '--x-mean',
+        X_SOURCE_MEAN,
+        '--intercept=%.2f' % INTERCEPT,
+        '--shift-type',
+        c['shift_type'],
+        '--shift-A',
+        c['shiftA'],
+        '--subG',
+        c['subG'],
+        '--source-beta',
+        SOURCE_BETA,
+        '--target-beta',
+        TARGET_BETA,
+        '--prob-shift',
+        c['prob_shift'],
+        "--propensity-beta=%s" % PROPENSITY_BETA_DICT[c['positivity']],
+        '--propensity-intercept=%.2f' % PROPENSITY_INTERCEPT,
+        '--out-source-file ${TARGETS[0]}',
+        '--out-data-gen ${TARGETS[1]}',
+    ]
+    # cmd = [
+    #     'python run_script.py',
+    #     '--cluster',
+    #     localenv['cluster'],
+    #     '--target-template-file',
+    #     '${TARGETS[0]}',
+    #     '--num-jobs',
+    #     NUM_JOBS,
+    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+    # ]
+    return env.Command(
+        targets,
+        [],
+        ' '.join(map(str, cmd)))
+
+@nest.add_target_with_env(localenv)
+def train_ml(env, outdir, c):
+    targets = [
+        join(outdir, 'mdl.pkl'),
+        join(outdir, 'mdl_perf.csv'),
+        join(outdir, 'log_ml.txt'),
+        # join(outdir, 'perf_ml_source.png'),
+        # join(outdir, 'perf_ml_target.png'),
+    ]
+    cmd = [
+        'python train_ml.py',
+        '--seed-offset',
+        0,
+        '--train-frac',
+        0.5,
+        '--model',
+        'RandomForestClassifier',
+        '--train-data ${SOURCES[0]}',
+        '--data-gen ${SOURCES[1]}',
+        '--mdl ${TARGETS[0]}',
+        '--perf-csv ${TARGETS[1]}',
+        '--log ${TARGETS[2]}',
+        # '--plot-source ${TARGETS[3]}',
+        # '--plot-target ${TARGETS[4]}',
+    ]
+    # cmd = [
+    #     'python run_script.py',
+    #     '--cluster',
+    #     localenv['cluster'],
+    #     '--target-template-file',
+    #     '${TARGETS[0]}',
+    #     '--num-jobs',
+    #     NUM_JOBS,
+    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+    # ]
+    return env.Command(
+        targets,
+        c['generate_data'],
+        ' '.join(map(str, cmd)))
+
+nest.add_aggregate('res_agg', list)
+nest.add(
+    'seed',
+    range(NUM_SEEDS)
+)
+
+@nest.add_target_with_env(localenv)
+def monitor(env, outdir, c):
+    targets = [
+        join(outdir, 'log.txt'),
+        join(outdir, 'res.csv'),
+    ]
+
+    cmd = [
+        'python do_monitor_seq.py',
+        '--data-gen ${SOURCES[0]}',
+        '--mdl ${SOURCES[1]}',
+        '--perf-targets ${SOURCES[2]}',
+        '--score-intervene-beta="-2"',
+        '--mean-intervene-beta="-2"',
+        '--intervene-intercept',
+        0,
+        '--metrics',
+        'npv,ppv',
+        '--alternative',
+        'less_extreme',
+        '--alpha',
+        ALPHA,
+        '--delta',
+        DELTA,
+        '--batch-size',
+        BATCH_SIZE,
+        '--num-iters',
+        c['beta_shift_time'] + NUM_ADD_ITERS,
+        '--seed-offset',
+        c['seed'] + 100,
+        '--log-file ${TARGETS[0]}',
+        '--out-file ${TARGETS[1]}',
+    ]
+    # cmd = [
+    #     'python run_script.py',
+    #     '--cluster',
+    #     localenv['cluster'],
+    #     '--target-template-file',
+    #     '${TARGETS[0]}',
+    #     '--num-jobs',
+    #     NUM_JOBS,
+    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+    # ]
+    c['res_agg'].append(targets[1])
+    return env.Command(
+        targets,
+        [
+            c['generate_data'][1],
+            c['train_ml'][0],
+            c['train_ml'][1],
+        ],
+        ' '.join(map(str, cmd)))
+
+@nest.add_target_with_env(localenv)
+def plot_cusum(env, outdir, c):
+    targets = [
+        join(outdir, 'plot_cusum.png'),
+    ]
+    if c['seed'] < 1:
+        cmd = [
+            'python plot_cusum.py',
+            '--res ${SOURCES[1]}',
+            '--batch-size',
+            BATCH_SIZE,
+            '--plot-file ${TARGETS[0]}',
+        ]
+        # cmd = [
+        #     'python run_script.py',
+        #     '--cluster',
+        #     localenv['cluster'],
+        #     '--target-template-file',
+        #     '${TARGETS[0]}',
+        #     '--num-jobs',
+        #     NUM_JOBS,
+        #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
+        # ]
+        return env.Command(
+            targets,
+            c['monitor'],
+            ' '.join(map(str, cmd)))
+
+nest.pop('seed')
+
+@nest.add_target_with_env(localenv)
+def aggregate(env, outdir, c):
+    targets = [
+        join(outdir, 'plot_power.png'),
+        join(outdir, 'aggregate.csv'),
+    ]
+    res_files = ','.join([join('simulation_clear_power', f) for f in c['res_agg']])
+
+    cmd = [
+        'python plot_simulation_estimands.py',
+        '--shift-time',
+        c['beta_shift_time'],
+        '--batch-size',
+        BATCH_SIZE,
+        '--result',
+        res_files,
+        '--plot ${TARGETS[0]}',
+        '--csv-file ${TARGETS[1]}',
+    ]
+    return env.Command(
+        targets,
+        c['res_agg'],
+        ' '.join(map(str, cmd)))

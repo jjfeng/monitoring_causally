@@ -6,7 +6,7 @@ import argparse
 import pandas as pd
 import numpy as np
 
-from data_generator import DataGenerator, SmallXShiftDataGenerator
+from data_generator import DataGenerator, SmallXShiftDataGenerator, SymSmallXShiftDataGenerator
 
 
 def parse_args():
@@ -30,7 +30,7 @@ def parse_args():
     )
     parser.add_argument("--x-mean", type=str, help="x mean")
     parser.add_argument("--intercept", type=float, help="intercept")
-    parser.add_argument("--shift-type", type=str, choices=["none", "small_x_shift"])
+    parser.add_argument("--shift-type", type=str, choices=["none", "small_x_shift", "sym_small_x_shift"])
     parser.add_argument("--shift-A", type=int)
     parser.add_argument("--subG", type=int)
     parser.add_argument(
@@ -74,7 +74,7 @@ def parse_args():
     )
     args = parser.parse_args()
     args.source_beta = np.array(list(map(float, args.source_beta.split(","))))
-    args.target_beta = np.array(list(map(float, args.target_beta.split(","))))
+    args.target_beta = np.array(list(map(float, args.target_beta.split(",")))) if args.target_beta is not None else None
     args.propensity_beta = np.array(list(map(float, args.propensity_beta.split(","))))
     args.x_mean = np.array(list(map(float, args.x_mean.split(","))))
     args.log_file = args.log_file_template.replace("JOB", str(args.job_idx))
@@ -104,8 +104,18 @@ def main():
     )
     logging.info(args)
 
-    # TODO: vary the type of data being returned based on data type string
-    if args.shift_type == "small_x_shift":
+    if args.shift_type == "sym_small_x_shift":
+        dg = SymSmallXShiftDataGenerator(
+            source_beta=args.source_beta,
+            target_beta=args.target_beta,
+            intercept=args.intercept,
+            prob_shift=args.prob_shift,
+            subG=args.subG,
+            shift_A=args.shift_A,
+            x_mean=args.x_mean,
+            beta_shift_time=args.beta_shift_time,
+        )
+    elif args.shift_type == "small_x_shift":
         dg = SmallXShiftDataGenerator(
             source_beta=args.source_beta,
             target_beta=args.target_beta,
@@ -119,7 +129,6 @@ def main():
     else:
         dg = DataGenerator(
             source_beta=args.source_beta,
-            target_beta=args.target_beta,
             intercept=args.intercept,
             x_mean=args.x_mean,
             beta_shift_time=args.beta_shift_time,

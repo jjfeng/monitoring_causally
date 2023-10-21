@@ -1,5 +1,5 @@
 """
-Just for testing purposes. Check if the algorithms work
+Test behavior under the null
 """
 import os
 
@@ -15,64 +15,27 @@ localenv = env.Clone()
 # Set up state
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
-NUM_ADD_ITERS = 50
-NUM_SEEDS = 20
+NUM_ITERS = 50
+NUM_SEEDS = 12
 NUM_VAR = 2
-BATCH_SIZE = 25
+BATCH_SIZE = 50
 DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
-    "severe": '-6,0,0',
-    "mild": '-2,0,0'
+    "high": '-6,0,0',
+    # "mild": '-2,0,0'
 }
 PROPENSITY_INTERCEPT = 0
-INTERCEPT = 0
+INTERCEPT = -0.5
 SOURCE_BETA = '0,0,0,0.5,-1' # a_x_xa
-TARGET_BETA = '0,0,0,0.5,-1' # a_x_xa
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
-
-nest.add(
-    'beta_shift_time',
-    [
-        10
-    ],
-    label_func=lambda c: 'shift_time%d' % c
-)
 
 nest.add(
     'positivity',
     [
-        'severe',
+        'high',
         # 'mild'
     ]
-)
-
-nest.add(
-    'prob_shift',
-    [
-        0.1,
-        # 0.2
-    ],
-    label_func=lambda c: 'prob_shift%.2f' % c
-)
-
-
-nest.add(
-    'subG',
-    [
-        # 0,
-        1
-    ],
-    label_func=lambda c: 'subG%d' % c
-)
-
-nest.add(
-    'shiftA',
-    [
-        0,
-        1
-    ],
-    label_func=lambda c: 'shiftA%d' % c
 )
 
 @nest.add_target_with_env(localenv)
@@ -91,23 +54,13 @@ def generate_data(env, outdir, c):
         10000,
         '--seed-offset',
         0,
-        '--beta-shift-time',
-        c['beta_shift_time'],
         '--x-mean',
         X_SOURCE_MEAN,
         '--intercept=%.2f' % INTERCEPT,
         '--shift-type',
-        'small_x_shift',
-        '--shift-A',
-        c['shiftA'],
-        '--subG',
-        c['subG'],
+        'none',
         '--source-beta',
         SOURCE_BETA,
-        '--target-beta',
-        TARGET_BETA,
-        '--prob-shift',
-        c['prob_shift'],
         "--propensity-beta=%s" % PROPENSITY_BETA_DICT[c['positivity']],
         '--propensity-intercept=%.2f' % PROPENSITY_INTERCEPT,
         '--out-source-file ${TARGETS[0]}',
@@ -201,7 +154,7 @@ def monitor(env, outdir, c):
         '--batch-size',
         BATCH_SIZE,
         '--num-iters',
-        c['beta_shift_time'] + NUM_ADD_ITERS,
+        NUM_ITERS,
         '--seed-offset',
         c['seed'] + 100,
         '--log-file ${TARGETS[0]}',
@@ -263,12 +216,10 @@ def aggregate(env, outdir, c):
         join(outdir, 'plot_power.png'),
         join(outdir, 'aggregate.csv'),
     ]
-    res_files = ','.join([join('simulation_test', f) for f in c['res_agg']])
+    res_files = ','.join([join('simulation_null', f) for f in c['res_agg']])
 
     cmd = [
         'python plot_simulation_estimands.py',
-        '--shift-time',
-        c['beta_shift_time'],
         '--batch-size',
         BATCH_SIZE,
         '--result',
