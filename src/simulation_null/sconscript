@@ -15,10 +15,10 @@ localenv = env.Clone()
 # Set up state
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
-NUM_ITERS = 50
+NUM_ITERS = 20
 NUM_SEEDS = 12
 NUM_VAR = 2
-BATCH_SIZE = 50
+BATCH_SIZE = 25
 DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
@@ -66,16 +66,6 @@ def generate_data(env, outdir, c):
         '--out-source-file ${TARGETS[0]}',
         '--out-data-gen ${TARGETS[1]}',
     ]
-    # cmd = [
-    #     'python run_script.py',
-    #     '--cluster',
-    #     localenv['cluster'],
-    #     '--target-template-file',
-    #     '${TARGETS[0]}',
-    #     '--num-jobs',
-    #     NUM_JOBS,
-    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
-    # ]
     return env.Command(
         targets,
         [],
@@ -106,16 +96,6 @@ def train_ml(env, outdir, c):
         # '--plot-source ${TARGETS[3]}',
         # '--plot-target ${TARGETS[4]}',
     ]
-    # cmd = [
-    #     'python run_script.py',
-    #     '--cluster',
-    #     localenv['cluster'],
-    #     '--target-template-file',
-    #     '${TARGETS[0]}',
-    #     '--num-jobs',
-    #     NUM_JOBS,
-    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
-    # ]
     return env.Command(
         targets,
         c['generate_data'],
@@ -135,7 +115,10 @@ def monitor(env, outdir, c):
     ]
 
     cmd = [
-        'python do_monitor_seq.py',
+        'python run_script.py',
+        localenv['cluster'],
+        '${TARGETS[0]}',
+        'do_monitor_seq.py',
         '--data-gen ${SOURCES[0]}',
         '--mdl ${SOURCES[1]}',
         '--perf-targets ${SOURCES[2]}',
@@ -160,16 +143,6 @@ def monitor(env, outdir, c):
         '--log-file ${TARGETS[0]}',
         '--out-file ${TARGETS[1]}',
     ]
-    # cmd = [
-    #     'python run_script.py',
-    #     '--cluster',
-    #     localenv['cluster'],
-    #     '--target-template-file',
-    #     '${TARGETS[0]}',
-    #     '--num-jobs',
-    #     NUM_JOBS,
-    #     '--run-line="%s"' % ' '.join(map(str, orig_cmd)),
-    # ]
     c['res_agg'].append(targets[1])
     return env.Command(
         targets,
