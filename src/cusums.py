@@ -57,9 +57,10 @@ class CUSUM:
         **kwargs
     ):
         pred_y_a = pred_y_a01[np.arange(a.size), a.flatten()]
+        pred_class = pred_y_a > self.mdl.threshold
         pred_test_sign = (
             1 if alt_overest == "overest" else
-            (-1 if alt_overest == "underest" else ((pred_y_a > self.mdl.threshold) - 0.5) * 2)
+            (-1 if alt_overest == "underest" else (pred_class - 0.5) * 2)
         )
         boot_ys = np.random.binomial(
             n=1,
@@ -457,13 +458,12 @@ class CUSUM_score(CUSUM):
         """
         pred_class = kwargs["mdl_pred"] > self.mdl.threshold
         test_sign = (
-            -1 if self.alternative == "overest" else 
-            (1 if self.alternative == "underest" else -(pred_class - 0.5) * 2)
+            1 if self.alternative == "overest" else 
+            (-1 if self.alternative == "underest" else (pred_class - 0.5) * 2)
         )
         iter_stats = (
-            (y - (test_sign * self.delta + kwargs["mdl_pred"]))
+            (test_sign * (kwargs["mdl_pred"] - y) - self.delta)
             * kwargs["h"]
-            * test_sign
             * self.subg_weights
         )
         nonzero_mask = (np.sum(np.sum(kwargs["h"], axis=-1), axis=-1) > 0).flatten()
