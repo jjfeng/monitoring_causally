@@ -290,6 +290,9 @@ class wCUSUM(CUSUM):
             collate=False,
         )
         self.alpha_scale = self.n_bootstrap / np.sum(eff_obs_mask)
+        logging.info("ALPHA SCALE %f", self.alpha_scale)
+        if len(self.metrics) == 2:
+            assert self.alpha_scale == 1
         iter_ppv_stats = iter_ppv_stats[0, eff_obs_mask.flatten()]
         subg_var_ests = np.var(iter_ppv_stats, axis=0)
 
@@ -509,6 +512,7 @@ class CUSUM_score(CUSUM):
         )
         self.alpha_scale = self.n_bootstrap / np.sum(eff_obs_mask)
         logging.info("ALPHA SCALE %f", self.alpha_scale)
+        assert self.alpha_scale == 1
         iter_score_stats = iter_score_stats[0, eff_obs_mask.flatten()]
 
         subg_var_ests = np.var(iter_score_stats, axis=0)

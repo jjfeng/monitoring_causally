@@ -16,7 +16,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 65
-NUM_SEEDS = 1
+NUM_SEEDS = 2
 NUM_VAR = 2
 BATCH_SIZE = 50
 DELTA = 0.02
@@ -191,7 +191,10 @@ def monitor(env, outdir, c):
     ]
 
     cmd = [
-        'python do_monitor_seq.py',
+        'python run_script.py',
+        localenv['cluster'],
+        '${TARGETS[1]}',
+        'do_monitor_seq.py',
         '--data-gen ${SOURCES[0]}',
         '--mdl ${SOURCES[1]}',
         '--perf-targets ${SOURCES[2]}',
