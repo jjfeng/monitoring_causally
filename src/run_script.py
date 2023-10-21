@@ -19,7 +19,7 @@ def main(args=sys.argv[1:]):
         )
     else:
         output = subprocess.check_output(
-            "qsub -cwd run_script.sh %s" % run_line,
+            "qsub -cwd -pe smp 1 -l h_rt=00:20:00 run_script.sh %s" % run_line,
             stderr=subprocess.STDOUT,
             shell=True,
         )
@@ -28,9 +28,9 @@ def main(args=sys.argv[1:]):
     if not is_debug:
         # This code is really simple. Wait at most 100 * 10 seconds until the
         # desired result pops up in the file system.
-        for i in range(400):
+        for i in range(30):
             if not os.path.exists(target_file):
-                time.sleep(40)
+                time.sleep(60)
             else:
                 break
 

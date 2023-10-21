@@ -19,7 +19,6 @@ NUM_ITERS = 20
 NUM_SEEDS = 50
 NUM_VAR = 2
 BATCH_SIZE = 25
-DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
     "high": '-6,0,0',
@@ -101,6 +100,15 @@ def train_ml(env, outdir, c):
         c['generate_data'],
         ' '.join(map(str, cmd)))
 
+nest.add(
+    'delta',
+    [
+        #0.01,
+        0
+    ],
+    label_func=lambda c: 'delta%.2f' % c
+)
+
 nest.add_aggregate('res_agg', list)
 nest.add(
     'seed',
@@ -133,7 +141,7 @@ def monitor(env, outdir, c):
         '--alpha',
         ALPHA,
         '--delta',
-        DELTA,
+        c['delta'],
         '--batch-size',
         BATCH_SIZE,
         '--num-iters',
