@@ -177,7 +177,7 @@ def main():
         CUSUM.is_fired_alarm(score_cusum_res_df_under),
     )
     
-    WCUSUM with subgroups, intervention, oracle propensity model
+    # WCUSUM with subgroups, intervention, oracle propensity model
     wcusum_subg = wCUSUM(
        mdl,
        perf_targets_df=perf_targets_df,
