@@ -49,16 +49,20 @@ def main():
         res_df.value[res_df.label == proc_label] /= max_val
 
     res_df["actual_iter"] = res_df.actual_iter * args.batch_size
-    res_df["procedure"] = res_df.procedure.replace(PROC_DICT)
+    res_df["Procedure"] = res_df.label.replace(PROC_DICT)
+    res_df[" "] = res_df.variable.replace({
+        'dcl': 'Control limit',
+        'stat': 'Chart statistic',
+    })
 
     plt.clf()
-    sns.set_context("paper", font_scale=3)
+    sns.set_context("paper", font_scale=2)
     plt.figure(figsize=(10, 5))
     deep_colors = [(0.2980392156862745, 0.4470588235294118, 0.6901960784313725), (0.8666666666666667, 0.5176470588235295, 0.3215686274509804), (0.3333333333333333, 0.6588235294117647, 0.40784313725490196)]
     pastel_colors = [(0.6313725490196078, 0.788235294117647, 0.9568627450980393), (1.0, 0.7058823529411765, 0.5098039215686274), (0.5529411764705883, 0.8980392156862745, 0.6313725490196078)]
     sns.set_palette(
-        ([] if args.omit_naive else ['black'])
-        + [
+        [
+            'black',
             deep_colors[0],
             pastel_colors[0],
             deep_colors[1],
@@ -67,17 +71,18 @@ def main():
             pastel_colors[2],
         ]
     )
-    sns.lineplot(
+    ax = sns.lineplot(
         data=res_df,
         x="actual_iter",
         y="value",
-        hue="label",
-        style="variable",
+        hue="Procedure",
+        style=" ",
         legend=True,
         linewidth=3,
     )
+    sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
     plt.xlabel("Time")
-    plt.xlabel("Value")
+    plt.ylabel("Value")
     sns.despine()
     plt.tight_layout()
     plt.savefig(args.plot_file)
