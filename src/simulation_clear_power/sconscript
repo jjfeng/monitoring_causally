@@ -245,7 +245,7 @@ def aggregate(env, outdir, c):
 
     cmd = [
         'python plot_simulation_estimands.py',
-        '--omit-naive',
+        #'--omit-naive',
         '--max-time',
         c['beta_shift_time'] + NUM_ADD_ITERS,
         '--shift-time',
