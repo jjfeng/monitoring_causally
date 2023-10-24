@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 from common import get_n_jobs, read_csv, to_safe_prob
-
+from plot_simulation_estimands import PROC_DICT
 from cusums import CUSUM_naive, wCUSUM, CUSUM_score
 
 THRES = 0.5
@@ -49,16 +49,31 @@ def main():
         res_df.value[res_df.label == proc_label] /= max_val
 
     res_df["actual_iter"] = res_df.actual_iter * args.batch_size
+    res_df["procedure"] = res_df.procedure.replace(PROC_DICT)
+
     plt.clf()
     sns.set_context("paper", font_scale=3)
     plt.figure(figsize=(8, 5))
+    deep_colors = [(0.2980392156862745, 0.4470588235294118, 0.6901960784313725), (0.8666666666666667, 0.5176470588235295, 0.3215686274509804), (0.3333333333333333, 0.6588235294117647, 0.40784313725490196)]
+    pastel_colors = [(0.6313725490196078, 0.788235294117647, 0.9568627450980393), (1.0, 0.7058823529411765, 0.5098039215686274), (0.5529411764705883, 0.8980392156862745, 0.6313725490196078)]
+    sns.set_palette(
+        ([] if args.omit_naive else ['black'])
+        + [
+            deep_colors[0],
+            pastel_colors[0],
+            deep_colors[1],
+            pastel_colors[1],
+            deep_colors[2],
+            pastel_colors[2],
+        ]
+    )
     sns.lineplot(
         data=res_df,
         x="actual_iter",
         y="value",
         hue="label",
         style="variable",
-        legend=False,
+        legend=True,
         linewidth=3,
     )
     plt.xlabel("Time")
