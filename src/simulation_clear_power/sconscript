@@ -16,7 +16,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 65
-NUM_SEEDS = 20
+NUM_SEEDS = 40
 NUM_VAR = 2
 BATCH_SIZE = 50
 DELTA = 0.02
@@ -45,8 +45,8 @@ nest.add(
     'shift_type',
     [
         'all_shift',
-        # 'sym_small_x_shift',
-        # 'sym_misspec_subG_shift'
+        'sym_small_x_shift',
+        'sym_misspec_subG_shift'
     ]
 )
 
@@ -62,7 +62,6 @@ nest.add(
     'positivity',
     [
         'high',
-        # 'mild'
     ]
 )
 
@@ -70,7 +69,7 @@ nest.add(
     'prob_shift',
     [
         0.1,
-        # 0.2
+        0.2
     ],
     label_func=lambda c: 'prob_shift%.2f' % c
 )
@@ -88,7 +87,7 @@ nest.add(
 nest.add(
     'shiftA',
     [
-        # 0,
+        0,
         1
     ],
     label_func=lambda c: 'shiftA%d' % c
