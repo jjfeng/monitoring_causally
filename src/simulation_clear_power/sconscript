@@ -16,22 +16,24 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 65
-NUM_SEEDS = 40
-NUM_VAR = 2
+NUM_SEEDS = 1
+NUM_VAR = 10
 BATCH_SIZE = 50
 DELTA = 0.02
 ALPHA = 0.1
 PROPENSITY_BETA_DICT = {
-    "high": '-6,0,0',
+    "high": '-6,' + ",".join(["0"] * NUM_VAR),
     # "mild": '-2,0,0'
 }
 PROPENSITY_INTERCEPT = 0
 INTERCEPT = -0.5
 BETA_DICT = {
-    'A0_better': '0.5,0,0,0.5,-1', # a_x_xa
-    'avg_same': '0,0,0,0.5,-1'
+    'A0_better': '0.5,' + ",".join(["0"] * NUM_VAR) + ',0.5,-1,' + ",".join(["0"] * (NUM_VAR - 2)), # coef for a_x_xa
+    # 'avg_same': '0,' + ",".join(["0"] * NUM_VAR) + ',0.5,-1', # coef for a_x_xa
 }
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
+
+nest.add('num_var', [NUM_VAR])
 
 nest.add(
     'beta',

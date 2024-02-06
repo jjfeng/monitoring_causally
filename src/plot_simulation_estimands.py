@@ -114,7 +114,7 @@ def main():
     print("args.omit_naive", args.omit_naive)
     if args.omit_naive:
         all_res = all_res[all_res.procedure != 'Naive']
-    print(all_res)
+    print(all_res.procedure.unique())
     sns.set_context("paper", font_scale=2)
     plt.figure(figsize=(8, 5))
     deep_colors = [(0.2980392156862745, 0.4470588235294118, 0.6901960784313725), (0.8666666666666667, 0.5176470588235295, 0.3215686274509804), (0.3333333333333333, 0.6588235294117647, 0.40784313725490196)]

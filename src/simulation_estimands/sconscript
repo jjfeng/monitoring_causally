@@ -1,6 +1,8 @@
 """
 Compare performance of different estimands, for different propensities and magnitudes
 Only for NPV assessment
+
+SCRIPT IS FOR REGULATABLE AI WORKSHOP
 """
 import os
 
