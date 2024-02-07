@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument("--x-mean", type=str, help="x mean")
     parser.add_argument("--intercept", type=float, help="intercept")
     parser.add_argument("--shift-type", type=str,
-                        choices=["none", "small_x_shift", "sym_small_x_shift", "sym_misspec_subG_shift", "all_shift", "gradual_sym_small_x_shift"])
+                        choices=["none", "small_x_shift", "sym_small_x_shift", "sym_misspec_subG_shift", "all_shift", "gradual_sym_small_x_shift", "gradual_sym_misspec_subG_shift", "gradual_all_shift"])
     parser.add_argument("--shift-A", type=int)
     parser.add_argument("--subG", type=int)
     parser.add_argument(
@@ -116,6 +116,17 @@ def main():
             x_mean=args.x_mean,
             beta_shift_time=args.beta_shift_time,
         )
+    elif args.shift_type == "gradual_sym_misspec_subG_shift":
+        dg = GradualSymMisspecShiftDataGenerator(
+            source_beta=args.source_beta,
+            target_beta=args.target_beta,
+            intercept=args.intercept,
+            prob_shift=args.prob_shift,
+            subG=args.subG,
+            shift_A=args.shift_A,
+            x_mean=args.x_mean,
+            beta_shift_time=args.beta_shift_time,
+        )
     elif args.shift_type == "sym_small_x_shift":
         dg = SymSmallXShiftDataGenerator(
             source_beta=args.source_beta,
@@ -129,6 +140,17 @@ def main():
         )
     elif args.shift_type == "all_shift":
         dg = ShiftAllDataGenerator(
+            source_beta=args.source_beta,
+            target_beta=args.target_beta,
+            intercept=args.intercept,
+            prob_shift=args.prob_shift,
+            subG=None,
+            shift_A=args.shift_A,
+            x_mean=args.x_mean,
+            beta_shift_time=args.beta_shift_time,
+        )
+    elif args.shift_type == "gradual_all_shift":
+        dg = GradualShiftAllDataGenerator(
             source_beta=args.source_beta,
             target_beta=args.target_beta,
             intercept=args.intercept,
