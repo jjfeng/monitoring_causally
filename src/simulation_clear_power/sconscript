@@ -16,7 +16,7 @@ localenv = env.Clone()
 nest = SConsWrap(Nest(), localenv['output'], alias_environment=localenv)
 
 NUM_ADD_ITERS = 65
-NUM_SEEDS = 1
+NUM_SEEDS = 40
 NUM_VAR = 10
 BATCH_SIZE = 50
 DELTA = 0.02
@@ -29,7 +29,6 @@ PROPENSITY_INTERCEPT = 0
 INTERCEPT = -0.5
 BETA_DICT = {
     'A0_better': '0.5,' + ",".join(["0"] * NUM_VAR) + ',0.5,-1,' + ",".join(["0"] * (NUM_VAR - 2)), # coef for a_x_xa
-    # 'avg_same': '0,' + ",".join(["0"] * NUM_VAR) + ',0.5,-1', # coef for a_x_xa
 }
 X_SOURCE_MEAN = ",".join(["0"] * NUM_VAR)
 
@@ -39,7 +38,6 @@ nest.add(
     'beta',
     [
         'A0_better',
-        # 'avg_same',
     ]
 )
 
@@ -80,7 +78,6 @@ nest.add(
 nest.add(
     'subG',
     [
-        # 0,
         1
     ],
     label_func=lambda c: 'subG%d' % c
@@ -247,7 +244,7 @@ def aggregate(env, outdir, c):
 
     cmd = [
         'python plot_simulation_estimands.py',
-        '--omit-naive',
+        #'--omit-naive',
         '--max-time',
         c['beta_shift_time'] + NUM_ADD_ITERS,
         '--shift-time',
