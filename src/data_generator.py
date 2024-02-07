@@ -226,7 +226,7 @@ class ShiftAllDataGenerator(SmallXShiftDataGenerator):
         return prob
 
 class GradualSymSmallXShiftDataGenerator(SmallXShiftDataGenerator):
-    shift_speed = 0.1
+    shift_speed = 0.05
     def _get_prob(self, X, A):
         interaction = (A[:, np.newaxis] - 0.5) * 2 * X
         a_x_xa = np.concatenate([A[:, np.newaxis], X, interaction], axis=1)
