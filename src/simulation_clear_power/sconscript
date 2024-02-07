@@ -44,9 +44,10 @@ nest.add(
 nest.add(
     'shift_type',
     [
-        'all_shift',
-        'sym_small_x_shift',
-        'sym_misspec_subG_shift'
+        # 'all_shift',
+        # 'sym_small_x_shift',
+        # 'sym_misspec_subG_shift'
+        'gradual_sym_small_x_shift'
     ]
 )
 

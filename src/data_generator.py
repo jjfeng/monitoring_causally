@@ -224,3 +224,26 @@ class ShiftAllDataGenerator(SmallXShiftDataGenerator):
             )
             prob = to_safe_prob(prob + delta_prob, eps=0)
         return prob
+
+class GradualSymSmallXShiftDataGenerator(SmallXShiftDataGenerator):
+    shift_speed = 0.1
+    def _get_prob(self, X, A):
+        interaction = (A[:, np.newaxis] - 0.5) * 2 * X
+        a_x_xa = np.concatenate([A[:, np.newaxis], X, interaction], axis=1)
+        beta = self.source_beta if not self.is_shifted else self.target_beta
+        logit = np.matmul(a_x_xa, beta.reshape((-1, 1))) + self.intercept
+        prob = 1 / (1 + np.exp(-logit))
+        if self.is_shifted:
+            print("SHIFT_SPEED", self.shift_speed)
+            curr_prob_shift = self.prob_shift * min(1, self.shift_speed * (self.curr_time - self.beta_shift_time + 1))
+            print("CURR PROB", curr_prob_shift)
+            subG_mask = SubgroupDetector._get_subgroup(X)
+            if self.subG == 0:
+                subG_mask = np.logical_not(subG_mask)
+            logging.info("PREVALENCE of subgroup %f", subG_mask.mean())
+            shift_sign = (prob > 0.5) * -1 + (prob < 0.5)
+            delta_prob = (
+                shift_sign * curr_prob_shift * subG_mask * (A[:, np.newaxis] == self.shift_A)
+            )
+            prob = to_safe_prob(prob + delta_prob, eps=0)
+        return prob
